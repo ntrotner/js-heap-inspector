@@ -1,0 +1,11 @@
+{
+  "name": "@js-heap-inspector-lib/common",
+  "version": "0.0.0",
+  "description": "Common interfaces and utilities",
+  "main": "./src/public_api",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "tslib": "^2.8.1"
+  }
+}

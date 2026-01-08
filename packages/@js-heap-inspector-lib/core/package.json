@@ -1,0 +1,14 @@
+{
+  "name": "@js-heap-inspector/core",
+  "version": "0.0.0",
+  "description": "Core interfaces and utilities",
+  "main": "./src/public_api",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "tslib": "^2.8.1"
+  },
+  "dependencies": {
+    "js-big-decimal": "^2.2.0"
+  }
+}

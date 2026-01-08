@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base",
+  "compilerOptions": {
+    "paths": {
+      "@js-heap-inspector/common": [
+        "packages/@js-heap-inspector/common/dist",
+        "packages/@js-heap-inspector/common/src/public_api"
+      ]
+    }
+  }
+}

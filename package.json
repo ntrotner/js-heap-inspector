@@ -1,0 +1,41 @@
+{
+  "name": "js-heap-inspector",
+  "description": "Project aggregating libraries",
+  "version": "0.0.0",
+  "repository": "https://github.com/ntrotner/js-heap-inspector.git",
+  "author": "Nikita Trotner <nikita@ttnr.me>",
+  "scripts": {
+    "lint": "xo ./packages/**/*.ts",
+    "lint:fix": "xo ./packages/**/*.ts --fix",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=20.0"
+  },
+  "workspaces": [
+    "./packages/@*/*",
+    "./packages/@*"
+  ],
+  "resolutions": {
+    "@types/node": "^20.0.0"
+  },
+  "packageManager": "yarn@4.6.0",
+  "peerDependencies": {
+    "typescript": ">=5.7"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.7.1",
+    "@commitlint/config-conventional": "^19.7.1",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.19.0",
+    "eslint-plugin-import-newlines": "^1.4.0",
+    "husky": "^9.1.7",
+    "tslib": "^2.8.1",
+    "typescript": "^5.7.3",
+    "webpack": "^5.97.1",
+    "xo": "^0.60.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
+}
