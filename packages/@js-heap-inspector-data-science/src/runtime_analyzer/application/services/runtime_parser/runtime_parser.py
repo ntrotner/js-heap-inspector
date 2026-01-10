@@ -1,6 +1,6 @@
 import json
-from ...domain.models import Runtime
-from ...domain.exceptions import ParsingError
+from ....domain.models import Runtime
+from ....domain.exceptions import ParsingError
 
 class RuntimeParserService:
     def parse(self, raw_input: str) -> Runtime:
