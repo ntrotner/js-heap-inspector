@@ -7,7 +7,7 @@ from .runtime import Runtime
 from .subgraph import Subgraph
 from .differentiation import DeltaSubgraphResult, MatchSubgraphResult, ModificationSubgraphResult, MatchingResult
 from .code_evolution import CodeEvolution, CodeChangeSpan
-from .code_link import CodeLink
+from .code_link import CausalPair, CodeLinkContainer
 
 __all__ = ["Amount", "CodeEvolution", "Energy", "SoftwareEnergyRecording", "Node", "Edge", "Stack", "Runtime", "Subgraph",
-           "MatchingResult", "DeltaSubgraphResult", "MatchSubgraphResult", "ModificationSubgraphResult", "CodeChangeSpan", "CodeLink"]
+           "MatchingResult", "DeltaSubgraphResult", "MatchSubgraphResult", "ModificationSubgraphResult", "CodeChangeSpan", "CausalPair", "CodeLinkContainer"]

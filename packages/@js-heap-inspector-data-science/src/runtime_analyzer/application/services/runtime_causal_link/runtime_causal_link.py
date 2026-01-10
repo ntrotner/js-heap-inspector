@@ -47,6 +47,6 @@ class RuntimeCausalLinkService:
         subgraphs_modified = self.subgraph_algorithm.generate(modified)
         instantiated_differentiation_algorithm = self.differentiation_algorithm(baseline, subgraphs_baseline, modified, subgraphs_modified)
         differentiation = instantiated_differentiation_algorithm.differentiate()
-        instantiated_code_link = self.code_link_algorithm(differentiation, code_evolution_baseline, code_evolution_modified)
+        instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified, code_evolution_modified)
         
         return differentiation, instantiated_code_link.link()
