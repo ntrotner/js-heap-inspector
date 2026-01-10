@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: runtime_analyzer
+Version: 0.1.0
+Summary: Python Runtime Domain Model & Parser
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+
+# Runtime Analyzer
+
+Python core runtime domain model and parser.

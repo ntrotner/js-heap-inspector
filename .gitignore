@@ -45,3 +45,4 @@ test-results/
 
 .ipynb_checkpoints
 */causal-heap-analyzer/data
+__pycache__
