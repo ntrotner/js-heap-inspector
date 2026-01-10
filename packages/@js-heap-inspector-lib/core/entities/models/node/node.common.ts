@@ -1,5 +1,5 @@
-import type {
-  SoftwareEnergy,
+import {
+  type SoftwareEnergyRecording,
 } from '../energy';
 import {
   type NodeCore,
@@ -7,6 +7,6 @@ import {
 
 export type NodeCommon = {
   type: string;
-  energy: SoftwareEnergy;
+  energy: SoftwareEnergyRecording;
   root: boolean;
 } & NodeCore;

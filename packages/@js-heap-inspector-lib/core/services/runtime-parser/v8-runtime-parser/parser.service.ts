@@ -10,6 +10,9 @@ import {
   type V8SupportedRuntime,
 } from '../../../entities';
 
+/**
+ * V8 Runtime Parser
+ */
 export class V8Parser implements V8RuntimeParser {
   /**
    * V8 Runtime Schema

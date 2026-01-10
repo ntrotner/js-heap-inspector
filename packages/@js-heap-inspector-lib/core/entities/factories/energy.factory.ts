@@ -1,11 +1,9 @@
 import {
-  type Amount,
-  type SoftwareEnergy,
+  type SoftwareEnergyRecording,
 } from '../models';
 
-export function createSoftwareEnergy(value: Amount): SoftwareEnergy {
+export function createSoftwareEnergyRecording<T>(metrics: T): SoftwareEnergyRecording<T> {
   return {
-    value,
-    unit: 'joules',
+    metrics,
   };
 }

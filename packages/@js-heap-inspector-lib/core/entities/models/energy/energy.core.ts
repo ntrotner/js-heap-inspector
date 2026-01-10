@@ -7,6 +7,6 @@ export type Energy = {
   unit: string;
 };
 
-export type SoftwareEnergy = {
-  unit: 'joules';
-} & Energy;
+export type SoftwareEnergyRecording<T = unknown> = {
+  metrics: T;
+};

@@ -11,7 +11,9 @@ import {
 
 export class RuntimeParserOrchestrator {
   public parse(input: unknown): Runtime<NodeCore, EdgeCore, StackCore> | undefined {
-    const availableParsers: Array<RuntimeParser<unknown, Runtime<NodeCore, EdgeCore, StackCore>>> = [new V8Parser()];
+    const availableParsers: Array<RuntimeParser<unknown, Runtime<NodeCore, EdgeCore, StackCore>>> = [
+      new V8Parser()
+    ];
 
     for (const parser of availableParsers) {
       if (!parser.isCompatibleRuntimeSchema(input)) {
