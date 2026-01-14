@@ -1,16 +1,12 @@
-from typing import Set, List
-from ....domain.models import Runtime, MatchingResult, Subgraph, MatchSubgraphResult, ModificationSubgraphResult, DeltaSubgraphResult, Node
+from typing import List
+from ....domain.models import Runtime, MatchingResult, Subgraph, MatchSubgraphResult, ModificationSubgraphResult, \
+    DeltaSubgraphResult, Node
 from .contracts.differentiation_algorithm import MatchingAlgorithm
 
 
-# --- User Provided Models (Included for context) ---
-# [Insert your Pydantic models here: MatchSubgraphResult, ModificationSubgraphResult, 
-# DeltaSubgraphResult, MatchingResult, Subgraph, Node, Runtime, MatchingAlgorithm]
-
 class HeuristicMatchingAlgorithm(MatchingAlgorithm):
     """
-    Implements the Heuristic-Based Graph Differentiation described in 
-    Section 3.2.4 of the thesis.
+    Implements the Heuristic-Based Graph Differentiation described in Section 3.2.4 of the thesis.
     
     Phases:
     1. Exact Matching: Identifies invariant structures.
@@ -23,14 +19,14 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
                  subgraphs_baseline: List[Subgraph],
                  runtime_modified: Runtime,
                  subgraphs_modified: List[Subgraph],
-                 similarity_threshold: float = 0.5):
+                 similarity_threshold: float = 0.3):
         super().__init__(runtime_baseline, subgraphs_baseline, runtime_modified, subgraphs_modified)
-        self.threshold = similarity_threshold  # Corresponds to delta in Eq 3.11
+        self.threshold = similarity_threshold
 
     def differentiate(self) -> MatchingResult:
         # Sets to keep track of matched IDs to ensure exclusivity
-        matched_baseline_ids: Set[str] = set()
-        matched_modified_ids: Set[str] = set()
+        matched_baseline_ids: set[str] = set()
+        matched_modified_ids: set[str] = set()
 
         matched_results: List[MatchSubgraphResult] = []
         modified_results: List[ModificationSubgraphResult] = []
@@ -38,14 +34,10 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
         removed_results: List[DeltaSubgraphResult] = []
 
         # --- Phase 1: Exact Matching (Thesis Eq 3.8) ---
-        # "A pair corresponds if Si from R_modified is structurally and 
-        # attributively identical to Sj' from R_baseline."
 
-        # Index baseline subgraphs for faster lookup (optimization)
-        # In a real implementation, hashing complex objects might require specific __hash__ methods
-        # Here we use a nested loop for clarity of the algorithm
-
-        for mod_sg in self.subgraphs_modified:
+        for index, mod_sg in enumerate(self.subgraphs_modified):
+            if index % 50 == 0:
+                print(f"Heuristic Matching Phase 1 Status: {(index/len(self.subgraphs_modified))*100:.2f}%")
             best_exact_match = None
 
             for base_sg in self.subgraphs_baseline:
@@ -65,10 +57,7 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
                 ))
 
         # --- Phase 2: Inexact Matching (Thesis Eq 3.11) ---
-        # "The second phase applies bidirectional inexact matching... minimizing 
-        # semantic and structural distance dist(Si, Sj')"
 
-        # Prepare sets U_mod and U_base (Unmatched subgraphs)
         unmatched_modified = [sg for sg in self.subgraphs_modified
                               if sg.center_node_id not in matched_modified_ids]
         unmatched_baseline = [sg for sg in self.subgraphs_baseline
@@ -76,7 +65,9 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
 
         # Calculate pairwise distances
         candidates = []
-        for mod_sg in unmatched_modified:
+        for index, mod_sg in enumerate(unmatched_modified):
+            if index % 50 == 0:
+                print(f"Heuristic Matching Phase 2 Similarity Status: {(index/len(unmatched_modified))*100:.2f}%")
             for base_sg in unmatched_baseline:
                 dist = self._calculate_distance(mod_sg, base_sg)
                 if dist < self.threshold:
@@ -87,13 +78,13 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
         # Sort by lowest distance (Greedy approach for "argmin")
         candidates.sort(key=lambda x: x[0])
 
-        for dist, mod_sg, base_sg, similarity in candidates:
-            # Check if either is already taken in this phase
+        for index, (dist, mod_sg, base_sg, similarity) in enumerate(candidates):
+            if index % 50 == 0:
+                print(f"Heuristic Matching Phase 2 Distance Status: {(index/len(candidates))*100:.2f}%")
             if (mod_sg.center_node_id in matched_modified_ids or
                     base_sg.center_node_id in matched_baseline_ids):
                 continue
 
-            # Register match
             matched_modified_ids.add(mod_sg.center_node_id)
             matched_baseline_ids.add(base_sg.center_node_id)
 
@@ -104,22 +95,25 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
             ))
 
         # --- Phase 3: Residual Classification (Thesis Eq 3.13 - 3.15) ---
-        # "Any subgraph that cannot be matched exactly or inexactly... is determined to be disjoint."
 
         # Identify Added (S_added)
-        for mod_sg in self.subgraphs_modified:
+        for index, mod_sg in enumerate(self.subgraphs_modified):
+            if index % 50 == 0:
+                print(f"Heuristic Matching Phase 3 Added Status: {(index/len(self.subgraphs_modified))*100:.2f}%")
             if mod_sg.center_node_id not in matched_modified_ids:
                 added_results.append(DeltaSubgraphResult(
-                    nodes_baseline_id=[], # No baseline counterpart
+                    nodes_baseline_id=[],  # No baseline counterpart
                     nodes_modified_id=[n.id for n in mod_sg.nodes]
                 ))
 
         # Identify Removed (S_removed)
-        for base_sg in self.subgraphs_baseline:
+        for index, base_sg in enumerate(self.subgraphs_baseline):
+            if index % 50 == 0:
+                print(f"Heuristic Matching Phase 3 Removed Status: {(index/len(self.subgraphs_baseline))*100:.2f}%")
             if base_sg.center_node_id not in matched_baseline_ids:
                 removed_results.append(DeltaSubgraphResult(
                     nodes_baseline_id=[n.id for n in base_sg.nodes],
-                    nodes_modified_id=[] # No modified counterpart
+                    nodes_modified_id=[]  # No modified counterpart
                 ))
 
         return MatchingResult(
@@ -133,7 +127,6 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
         """
         Checks for topological and semantic identity (Exact Match).
         This implements the condition Si == Sj' from Eq 3.8.
-        Note: ID is abstracted; we check content, not memory address.
         """
         # 1. Quick check: Node counts and Edge counts
         if len(sg1.nodes) != len(sg2.nodes) or len(sg1.edges) != len(sg2.edges):
@@ -156,8 +149,8 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
         # Heuristic weights defined by domain knowledge
         # (e.g. Type mismatch is more severe than Value mismatch)
         W_TYPE = 0.5
-        W_VALUE = 0.3
-        W_TOPOLOGY = 0.2
+        W_VALUE = 0.35
+        W_TOPOLOGY = 0.1
 
         center1 = next(n for n in sg1.nodes if n.id == sg1.center_node_id)
         center2 = next(n for n in sg2.nodes if n.id == sg2.center_node_id)

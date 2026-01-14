@@ -39,10 +39,10 @@
     "allowSyntheticDefaultImports": true,
     "paths": {
       "@js-heap-inspector/common": [
-        "packages/@js-heap-inspector-lib/common/src/public_api.ts"
+        "packages/@js-heap-inspector-lib/common/public_api.ts"
       ],
       "@js-heap-inspector/core": [
-        "packages/@js-heap-inspector-lib/core/src/public_api.ts"
+        "packages/@js-heap-inspector-lib/core/public_api.ts"
       ],
       "tslib": ["node_modules/tslib/tslib.d.ts"]
     }

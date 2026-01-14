@@ -2,32 +2,31 @@ from typing import List, Dict, Optional
 from .contracts.code_link_algorithm import CodeLinkAlgorithm
 from ....domain.models import Stack, Node, Edge, CodeEvolution, CodeLinkContainer, CausalPair
 
+
 class DeterministicLinkage(CodeLinkAlgorithm):
     """
     Implements the deterministic linkage strategy defined in Thesis Section 3.3.2.
-    Requires Extended Attributes (Stack Traces)[cite: 1208].
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Pre-compute lookup maps for O(1) access
         self.bl_stack_map = {s.id: s for s in self.runtime_baseline.stacks}
         self.mod_stack_map = {s.id: s for s in self.runtime_modified.stacks}
 
         self.bl_node_map = {n.id: n for n in self.runtime_baseline.nodes}
         self.mod_node_map = {n.id: n for n in self.runtime_modified.nodes}
 
-        # Build reverse edge maps for Retainer Search (Phase 2) [cite: 1269]
+        # Build reverse edge maps for retainer search (Phase 2)
         self.mod_reverse_edges = self._build_reverse_edges(self.runtime_modified.edges)
 
-        # Pre-filter code changes into Contexts [cite: 1227]
+        # Pre-filter code changes into contexts
         self.context_regression = [
             c for c in self.code_changes_modified
-            if c.m_source == 'Modified'
+            if c.modificationSource == 'modified'
         ]
         self.context_improvement = [
             c for c in self.code_changes_baseline
-            if c.m_source == 'Baseline'
+            if c.modificationSource == 'base'
         ]
 
     def _build_reverse_edges(self, edges: List[Edge]) -> Dict[str, List[str]]:
@@ -43,7 +42,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         regressions: List[CausalPair] = []
         improvements: List[CausalPair] = []
 
-        # --- Phase 1: Direct Linkage [cite: 1240] ---
+        # --- Phase 1: Direct Linkage ---
 
         # 1. Analyze Added Nodes (Regressions)
         # Input: S_delta (added) and S_modified
@@ -58,7 +57,8 @@ class DeterministicLinkage(CodeLinkAlgorithm):
 
         for node_id in target_mod_ids:
             node = self.mod_node_map.get(node_id)
-            if not node: continue
+            if not node:
+                continue
 
             link = self._sl_verify(node, self.context_regression, self.mod_stack_map)
             if link:
@@ -71,13 +71,12 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         for res in self.matching_result.removed_node_ids:
             for node_id in res.nodes_baseline_id:
                 node = self.bl_node_map.get(node_id)
-                if not node: continue
+                if not node:
+                    continue
 
                 link = self._sl_verify(node, self.context_improvement, self.bl_stack_map)
                 if link:
                     improvements.append(CausalPair(node_id=node.id, code_evolution=link, confidence='Direct'))
-                # We typically don't do derived linkage for improvements in this scope, 
-                # but logic would be symmetric.
 
         # --- Phase 2: Derived Linkage (Retainer Search)  ---
 
@@ -90,7 +89,8 @@ class DeterministicLinkage(CodeLinkAlgorithm):
 
         return CodeLinkContainer(regressions=regressions, improvements=improvements)
 
-    def _sl_verify(self, node: Node, code_changes: List[CodeEvolution], stack_map: Dict[str, Stack]) -> Optional[CodeEvolution]:
+    def _sl_verify(self, node: Node, code_changes: List[CodeEvolution], stack_map: Dict[str, Stack]) -> Optional[
+        CodeEvolution]:
         """
         Implementation of equation 3.35: SL_verify(S, E).
         Checks if the allocation trace intersects with code change coordinates.
@@ -137,34 +137,33 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         """
         # 1. Check File Match
         # Note: In production, rigorous path normalization/fuzzy matching is needed here.
-        if change.id_file not in frame.scriptName:
+        if change.fileId not in frame.scriptName:
             return False
 
         # 2. Check Coordinate Span
         # Simple bounding box check for lines
-        if (frame.lineNumber >= change.span.start_line and
-                frame.lineNumber <= change.span.end_line):
+        if (frame.lineNumber >= change.codeChangeSpan.lineStart and
+                frame.lineNumber <= change.codeChangeSpan.lineEnd):
             return True
 
         return False
 
     def _find_causal_retainer(self, node_id: str, established_links: List[CausalPair]) -> Optional[CodeEvolution]:
         """
-        Phase 2: Traverses graph topology to find a retainer linked to a code change[cite: 1275].
+        Phase 2: Traverses graph topology to find a retainer linked to a code change.
         Search Space: Zone 1 (Intra-Subgraph) + Zone 2 (Neighborhood).
         """
-        # Lookup map for already established links for O(1) check
         link_map = {pair.node_id: pair.code_evolution for pair in established_links}
 
         # BFS Queue: (current_node_id, distance)
         queue = [(node_id, 0)]
         visited = {node_id}
-        max_distance = 3 # K-Hop limit (Zone 2) [cite: 1278]
+        max_distance = 10  # K-Hop limit (Zone 2)
 
         while queue:
             curr, dist = queue.pop(0)
 
-            # If this retainer is already causally linked, inherit the cause [cite: 1308]
+            # If this retainer is already causally linked, inherit the cause
             if curr in link_map:
                 return link_map[curr]
 

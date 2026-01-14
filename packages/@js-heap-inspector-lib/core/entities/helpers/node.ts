@@ -2,7 +2,7 @@ import type {
   NodeCore,
   NodeCommon,
   NodeExtended,
-} from '../entities';
+} from '../models';
 import {
   isBoolean,
   isObject,

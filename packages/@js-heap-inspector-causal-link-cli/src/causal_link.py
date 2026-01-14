@@ -1,0 +1,124 @@
+import argparse
+import json
+import sys
+
+from runtime_analyzer.application.services.runtime_causal_link.runtime_causal_link import RuntimeCausalLinkService
+from runtime_analyzer.application.services.runtime_parser.runtime_parser import RuntimeParserService
+from runtime_analyzer.application.services.matching.heuristic_matching_algorithm import HeuristicMatchingAlgorithm
+from runtime_analyzer.application.services.subgraph_creation.greedy_k_hop_subgraph_algorithm import \
+    GreedyKHopSubgraphAlgorithm
+from runtime_analyzer.application.services.subgraph_creation.primitive_subgraph_algorithm import \
+    PrimitiveSubgraphAlgorithm
+from runtime_analyzer.application.services.code_link.deterministic_code_link_algorithm import DeterministicLinkage
+from runtime_analyzer.domain.exceptions import ParsingError, InvalidRuntimeError, UnsupportedAlgorithmError
+from runtime_analyzer.domain.models import CodeEvolution
+
+STRATEGY_MAP = {
+    "heuristic-greedy": {
+        "matching": HeuristicMatchingAlgorithm,
+        "subgraph": GreedyKHopSubgraphAlgorithm,
+        "code_link": DeterministicLinkage
+    },
+    "primitive": {
+        "matching": HeuristicMatchingAlgorithm,
+        "subgraph": PrimitiveSubgraphAlgorithm,
+        "code_link": DeterministicLinkage
+    }
+}
+
+def main():
+    parser = argparse.ArgumentParser(description="Compare two V8 heap snapshots in common runtime format.")
+    parser.add_argument("--baseline", required=True, help="Path to the baseline runtime JSON file.")
+    parser.add_argument("--modified", required=True, help="Path to the modified runtime JSON file.")
+    parser.add_argument("--strategy", default="heuristic-one-hop", choices=STRATEGY_MAP.keys(),
+                        help="Causal link strategy to use.")
+    parser.add_argument("--codeEvolution", help="Path to the code evolution JSON file.")
+    parser.add_argument("--output", help="Path to save the comparison result (JSON).")
+
+    args = parser.parse_args()
+
+    parser_service = RuntimeParserService()
+
+    try:
+        # Load baseline
+        with open(args.baseline, 'r') as f:
+            baseline_raw = f.read()
+        baseline_runtime = parser_service.parse(baseline_raw)
+        if not baseline_runtime.nodes:
+            raise InvalidRuntimeError("Baseline runtime has no nodes.")
+
+        # Load modified
+        with open(args.modified, 'r') as f:
+            modified_raw = f.read()
+        modified_runtime = parser_service.parse(modified_raw)
+        if not modified_runtime.nodes:
+            raise InvalidRuntimeError("Modified runtime has no nodes.")
+
+        # Get strategy components
+        strategy = STRATEGY_MAP.get(args.strategy)
+        if not strategy:
+            raise UnsupportedAlgorithmError(f"Strategy '{args.strategy}' is not supported.")
+
+        with open(args.codeEvolution, 'r') as f:
+            code_evolutions_raw = f.read()
+        code_evolutions = json.loads(code_evolutions_raw)
+        code_evolutions_baseline = []
+        code_evolutions_modified = []
+        
+        for code_evolution in code_evolutions:
+            parsed_code_evolution = CodeEvolution.model_validate(code_evolution)
+            
+            if parsed_code_evolution.modificationSource == "base":
+                code_evolutions_baseline.append(parsed_code_evolution)
+            if parsed_code_evolution.modificationSource == "modified":
+                code_evolutions_modified.append(parsed_code_evolution)
+
+        print(code_evolutions_baseline)
+        print(code_evolutions_modified)
+        # Initialize service
+        service = RuntimeCausalLinkService(
+            differentiation_algorithm=strategy["matching"],
+            subgraph_algorithm=strategy["subgraph"],
+            code_link_algorithm=strategy["code_link"]
+        )
+
+        matching_result, code_links = service.compare(
+            baseline=baseline_runtime,
+            code_evolution_baseline=code_evolutions_baseline,
+            modified=modified_runtime,
+            code_evolution_modified=code_evolutions_modified
+        )
+
+        # Prepare result
+        result = {
+            "matching": matching_result.model_dump(),
+            "causal_links": code_links.model_dump()
+        }
+
+        # Output result
+        if args.output:
+            with open(args.output, 'w') as f:
+                json.dump(result, f, indent=2)
+            print(f"Results saved to {args.output}")
+        else:
+            print(json.dumps(result, indent=2))
+
+    except FileNotFoundError as e:
+        print(f"Error: File not found: {e.filename}", file=sys.stderr)
+        sys.exit(1)
+    except ParsingError as e:
+        print(f"Error parsing runtime data: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+    except InvalidRuntimeError as e:
+        print(f"Error: Invalid runtime data: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+    except UnsupportedAlgorithmError as e:
+        print(f"Error: Unsupported algorithm: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

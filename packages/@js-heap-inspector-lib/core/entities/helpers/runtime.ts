@@ -3,7 +3,7 @@ import type {
   NodeCore,
   Runtime,
   StackCore,
-} from '../entities';
+} from '../models';
 import {
   isObject,
 } from './utils';

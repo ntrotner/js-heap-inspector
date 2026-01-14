@@ -2,7 +2,7 @@ import type {
   EdgeCore,
   EdgeCommon,
   EdgeExtended,
-} from '../entities';
+} from '../models';
 import {
   isObject,
   isString,

@@ -13,7 +13,7 @@ class GreedyKHopSubgraphAlgorithm(SubgraphAlgorithm):
     Figure 3.2 of the thesis.
     """
 
-    def __init__(self, k: int = 2):
+    def __init__(self, k: int = 3):
         self.k = k
 
     def generate(self, runtime: Runtime) -> List[Subgraph]:

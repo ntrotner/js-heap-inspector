@@ -1,4 +1,4 @@
-from ....domain.models import Runtime, MatchingResult, CodeLink, CodeEvolution
+from ....domain.models import Runtime, MatchingResult, CodeLinkContainer, CodeEvolution
 from ..matching.contracts.differentiation_algorithm import MatchingAlgorithm
 from ..subgraph_creation.contracts.subgraph_algorithm import SubgraphAlgorithm
 from ..code_link.contracts.code_link_algorithm import CodeLinkAlgorithm
@@ -16,7 +16,8 @@ class RuntimeCausalLinkService:
     3. Residual Classification (Added/Removed nodes)
     """
 
-    def __init__(self, differentiation_algorithm: type[MatchingAlgorithm], subgraph_algorithm: type[SubgraphAlgorithm], code_link_algorithm: type[CodeLinkAlgorithm]):
+    def __init__(self, differentiation_algorithm: type[MatchingAlgorithm], subgraph_algorithm: type[SubgraphAlgorithm],
+                 code_link_algorithm: type[CodeLinkAlgorithm]):
         """
         Initializes the service with a specific differentiation algorithm.
         
@@ -29,7 +30,8 @@ class RuntimeCausalLinkService:
         self.subgraph_algorithm = subgraph_algorithm()
         self.code_link_algorithm = code_link_algorithm
 
-    def compare(self, baseline: Runtime, code_evolution_baseline: list[CodeEvolution], modified: Runtime, code_evolution_modified: list[CodeEvolution]) -> tuple[MatchingResult, CodeLink]:
+    def compare(self, baseline: Runtime, code_evolution_baseline: list[CodeEvolution], modified: Runtime,
+                code_evolution_modified: list[CodeEvolution]) -> tuple[MatchingResult, CodeLinkContainer]:
         """
         Executes the differentiation process between baseline and modified runtimes.
         
@@ -42,11 +44,33 @@ class RuntimeCausalLinkService:
         Returns:
             A tuple containing a MatchingResult object and a CodeLink object.
         """
-        
+
         subgraphs_baseline = self.subgraph_algorithm.generate(baseline)
+        print(f"Generated subgraphs for baseline with length {subgraphs_baseline.__len__()}")
+
         subgraphs_modified = self.subgraph_algorithm.generate(modified)
-        instantiated_differentiation_algorithm = self.differentiation_algorithm(baseline, subgraphs_baseline, modified, subgraphs_modified)
+        print(f"Generated subgraphs for modified with length {subgraphs_modified.__len__()}")
+
+        instantiated_differentiation_algorithm = self.differentiation_algorithm(baseline,
+                                                                                subgraphs_baseline,
+                                                                                modified,
+                                                                                subgraphs_modified)
         differentiation = instantiated_differentiation_algorithm.differentiate()
-        instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified, code_evolution_modified)
-        
+        print(
+            f"Executed matching algorithm with following results: \n "
+            f"Matched: {differentiation.matched.__len__()}\n "
+            f"Modified: {differentiation.modified.__len__()}\n "
+            f"Added: {differentiation.added_node_ids.__len__()}\n "
+            f"Removed: {differentiation.removed_node_ids.__len__()}"
+        )
+
+        instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified,
+                                                          code_evolution_modified)
+        links = instantiated_code_link.link()
+        print(
+            "Executed code link algorithm with following results: \n"
+            f"Regressions: {links.regressions.__len__()}\n"
+            f"Improvements: {links.improvements.__len__()}\n"
+        )
+
         return differentiation, instantiated_code_link.link()

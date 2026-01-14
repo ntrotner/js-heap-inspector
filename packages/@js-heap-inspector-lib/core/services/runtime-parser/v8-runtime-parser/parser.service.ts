@@ -1,4 +1,5 @@
 import {
+  createEdgeExtended,
   createNodeExtended,
   type EdgeExtended,
   type NodeExtended,
@@ -63,82 +64,32 @@ export class V8Parser implements V8RuntimeParser {
     const parsedNodes = [] as NodeExtended[];
 
     for (let i = 0; i < snapshot.node_count; i++) {
-      const offset = nodes[i * nodeFieldCount];
-      const node = this.buildNodes(nodes, i * nodeFieldCount, typeNames, nodeFieldCount, meta.node_fields);
+      const base = i * nodeFieldCount;
+      const node = this.buildNodes(nodes, base, typeNames, nodeFieldCount, meta.node_fields);
       parsedNodes.push(node);
-      nodeByOffset.set(offset, node);
+      nodeByOffset.set(base, node);
     }
 
     // Build edges walking through the edge array; edges are grouped per node in order
     const edgeTypeNames = meta.edge_types[0];
-    let edgeCursor = 0;
+    const edgeCursor = 0;
     const parsedEdges = [] as EdgeExtended[];
-    let edgeIdCounter = 0;
-
+    const edgeIdCounter = 0;
     for (const fromNode of parsedNodes) {
       const edgeCount: number = (fromNode as any)?.__edgeCount ?? 0;
+      const edgesForFromNode = this.buildEdges(
+        edges,
+        edgeCount,
+        edgeCursor,
+        edgeIdCounter,
+        edgeFieldCount,
+        edgeTypeNames,
+        meta.edge_fields,
+        fromNode,
+        nodeByOffset,
+      );
+      parsedEdges.push(...edgesForFromNode);
 
-      for (let index = 0; index < edgeCount; index++) {
-        let typeIndex: number | undefined;
-        let nameOrIndex: number | undefined;
-        let toNodeOffset: number | undefined;
-
-        for (let attributeCount = 0; attributeCount < edgeFieldCount; attributeCount++) {
-          const attributeKey = meta.edge_fields[attributeCount];
-          const attributeValue = edges[edgeCursor + attributeCount];
-          switch (attributeKey) {
-            case 'type': {
-              typeIndex = attributeValue;
-              break;
-            }
-
-            case 'name_or_index': {
-              nameOrIndex = attributeValue;
-              break;
-            }
-
-            case 'to_node': {
-              toNodeOffset = attributeValue;
-              break;
-            }
-
-            default: {
-              break;
-            }
-          }
-        }
-
-        if (typeIndex === undefined || nameOrIndex === undefined || toNodeOffset === undefined) {
-          throw new Error('V8Parser: invalid edge metadata in V8 snapshot.');
-        }
-
-        edgeCursor += edgeFieldCount;
-        const typeName = edgeTypeNames[typeIndex] ?? 'unknown';
-        const toNode = nodeByOffset.get(toNodeOffset);
-        if (!toNode) {
-          // Skip edges pointing to an unknown node offset
-          continue;
-        }
-
-        // Resolve edge name
-        const edgeName: string = typeName === 'element' ? `[${nameOrIndex}]` : this.getGlobalString(nameOrIndex);
-        const edgeId = String(edgeIdCounter++);
-        const edge = {
-          id: edgeId,
-          fromNodeId: fromNode.id,
-          toNodeId: toNode.id,
-          name: edgeName,
-          type: typeName,
-        };
-        parsedEdges.push(edge);
-
-        // Our node model expects edgeIds: string[]; since Edge has no id, use edge name as a stable identifier
-        if (!fromNode.edgeIds.includes(edgeId)) {
-          fromNode.edgeIds.push(edgeId);
-        }
-      }
-
-      // Cleanup temp fields
       delete (fromNode as any).__edgeCount;
       delete (fromNode as any).__offset;
     }
@@ -330,14 +281,14 @@ export class V8Parser implements V8RuntimeParser {
 
     while (pivot.length > 0) {
       const traceNode = pivot.pop()!;
-      const children: TraceTree[] | undefined = traceTreeFields.includes('children') ? traceNode[traceTreeFields.indexOf('children')] as TraceTree[] : undefined;
+      const children = traceTreeFields.includes('children') ? traceNode[traceTreeFields.indexOf('children')] as number[][] : undefined;
       const indexOfId = traceTreeFields.indexOf('id');
       const childrenIds: string[] = [];
 
       if (children) {
         for (let i = 0; i < children.length; i += rawTraceNodeLenght) {
-          const childSlices = children.slice(i, i + rawTraceNodeLenght);
-          pivot.push(...childSlices);
+          const childSlices = children.slice(i, i + rawTraceNodeLenght) as unknown as TraceTree;
+          pivot.push(childSlices);
           childrenIds.push(String(childSlices[indexOfId]));
         }
       }
@@ -440,5 +391,86 @@ export class V8Parser implements V8RuntimeParser {
     (node as any).__edgeCount = edgeCount;
     (node as any).__offset = base;
     return node;
+  }
+
+  /**
+   * Builds edges for a given node
+   *
+   * @param edges
+   * @param edgeCount
+   * @param edgeCursor
+   * @param edgeIdCounter
+   * @param edgeFieldCount
+   * @param edgeTypeNames
+   * @param edgeFields
+   * @param fromNode
+   * @param nodeByOffset
+   * @private
+   */
+  private buildEdges(
+    edges: number[],
+    edgeCount: number,
+    edgeCursor: number,
+    edgeIdCounter: number,
+    edgeFieldCount: number,
+    edgeTypeNames: string[],
+    edgeFields: string[],
+    fromNode: NodeExtended,
+    nodeByOffset: Map<number, NodeExtended>,
+  ): EdgeExtended[] {
+    const edgesForFromNode: EdgeExtended[] = [];
+
+    for (let index = 0; index < edgeCount; index++) {
+      let typeIndex: number | undefined;
+      let nameOrIndex: number | undefined;
+      let toNodeOffset: number | undefined;
+
+      for (let attributeCount = 0; attributeCount < edgeFieldCount; attributeCount++) {
+        const attributeKey = edgeFields[attributeCount];
+        const attributeValue = edges[edgeCursor + attributeCount];
+        switch (attributeKey) {
+          case 'type': {
+            typeIndex = attributeValue;
+            break;
+          }
+
+          case 'name_or_index': {
+            nameOrIndex = attributeValue;
+            break;
+          }
+
+          case 'to_node': {
+            toNodeOffset = attributeValue;
+            break;
+          }
+
+          default: {
+            break;
+          }
+        }
+      }
+
+      if (typeIndex === undefined || nameOrIndex === undefined || toNodeOffset === undefined) {
+        throw new Error('V8Parser: invalid edge metadata in V8 snapshot.');
+      }
+
+      edgeCursor += edgeFieldCount;
+      const typeName = edgeTypeNames[typeIndex] ?? 'unknown';
+      const toNode = nodeByOffset.get(toNodeOffset);
+      if (!toNode) {
+        continue;
+      }
+
+      const edgeName: string = typeName === 'element' ? `[${nameOrIndex}]` : this.getGlobalString(nameOrIndex);
+      const edgeId = String(edgeIdCounter++);
+      const edge = createEdgeExtended(edgeId, fromNode.id, toNode.id, edgeName, typeName);
+      edgesForFromNode.push(edge);
+
+      if (!fromNode.edgeIds.includes(edgeId)) {
+        fromNode.edgeIds.push(edgeId);
+      }
+    }
+
+    return edgesForFromNode;
   }
 }
