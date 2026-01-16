@@ -17,7 +17,8 @@ class RuntimeCausalLinkService:
     """
 
     def __init__(self, differentiation_algorithm: type[MatchingAlgorithm], subgraph_algorithm: type[SubgraphAlgorithm],
-                 code_link_algorithm: type[CodeLinkAlgorithm]):
+                 code_link_algorithm: type[CodeLinkAlgorithm], differentiation_params: dict = None,
+                 subgraph_params: dict = None, code_link_params: dict = None):
         """
         Initializes the service with a specific differentiation algorithm.
         
@@ -25,10 +26,15 @@ class RuntimeCausalLinkService:
             differentiation_algorithm: An implementation of MatchingAlgorithm.
             subgraph_algorithm: An implementation of SubgraphAlgorithm.
             code_link_algorithm: An implementation of CodeLinkAlgorithm.
+            differentiation_params: Parameters for the differentiation algorithm.
+            subgraph_params: Parameters for the subgraph algorithm.
+            code_link_params: Parameters for the code link algorithm.
         """
         self.differentiation_algorithm = differentiation_algorithm
-        self.subgraph_algorithm = subgraph_algorithm()
+        self.subgraph_algorithm = subgraph_algorithm(**(subgraph_params or {}))
         self.code_link_algorithm = code_link_algorithm
+        self.differentiation_params = differentiation_params or {}
+        self.code_link_params = code_link_params or {}
 
     def compare(self, baseline: Runtime, code_evolution_baseline: list[CodeEvolution], modified: Runtime,
                 code_evolution_modified: list[CodeEvolution]) -> tuple[MatchingResult, CodeLinkContainer]:
@@ -54,7 +60,8 @@ class RuntimeCausalLinkService:
         instantiated_differentiation_algorithm = self.differentiation_algorithm(baseline,
                                                                                 subgraphs_baseline,
                                                                                 modified,
-                                                                                subgraphs_modified)
+                                                                                subgraphs_modified,
+                                                                                **self.differentiation_params)
         differentiation = instantiated_differentiation_algorithm.differentiate()
         print(
             f"Executed matching algorithm with following results: \n "
@@ -65,7 +72,7 @@ class RuntimeCausalLinkService:
         )
 
         instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified,
-                                                          code_evolution_modified)
+                                                          code_evolution_modified, **self.code_link_params)
         links = instantiated_code_link.link()
         print(
             "Executed code link algorithm with following results: \n"
@@ -73,4 +80,4 @@ class RuntimeCausalLinkService:
             f"Improvements: {links.improvements.__len__()}\n"
         )
 
-        return differentiation, instantiated_code_link.link()
+        return differentiation, links

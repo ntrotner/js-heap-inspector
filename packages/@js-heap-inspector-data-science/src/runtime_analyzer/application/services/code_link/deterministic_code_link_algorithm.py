@@ -8,8 +8,9 @@ class DeterministicLinkage(CodeLinkAlgorithm):
     Implements the deterministic linkage strategy defined in Thesis Section 3.3.2.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, max_distance: int = 10, **kwargs):
         super().__init__(*args, **kwargs)
+        self.max_distance = max_distance
         self.bl_stack_map = {s.id: s for s in self.runtime_baseline.stacks}
         self.mod_stack_map = {s.id: s for s in self.runtime_modified.stacks}
 
@@ -158,7 +159,6 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         # BFS Queue: (current_node_id, distance)
         queue = [(node_id, 0)]
         visited = {node_id}
-        max_distance = 10  # K-Hop limit (Zone 2)
 
         while queue:
             curr, dist = queue.pop(0)
@@ -167,7 +167,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             if curr in link_map:
                 return link_map[curr]
 
-            if dist >= max_distance:
+            if dist >= self.max_distance:
                 continue
 
             # Get retainers (Reverse edges)

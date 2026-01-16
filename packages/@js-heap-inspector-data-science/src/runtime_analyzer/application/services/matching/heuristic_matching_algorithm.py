@@ -19,9 +19,15 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
                  subgraphs_baseline: List[Subgraph],
                  runtime_modified: Runtime,
                  subgraphs_modified: List[Subgraph],
-                 similarity_threshold: float = 0.3):
+                 similarity_threshold: float = 0.3,
+                 w_type: float = 0.5,
+                 w_value: float = 0.35,
+                 w_topology: float = 0.1):
         super().__init__(runtime_baseline, subgraphs_baseline, runtime_modified, subgraphs_modified)
         self.threshold = similarity_threshold
+        self.w_type = w_type
+        self.w_value = w_value
+        self.w_topology = w_topology
 
     def differentiate(self) -> MatchingResult:
         # Sets to keep track of matched IDs to ensure exclusivity
@@ -146,12 +152,6 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
         Calculates distance between two subgraphs.
         Returns a float between 0.0 (identical) and 1.0 (completely different).
         """
-        # Heuristic weights defined by domain knowledge
-        # (e.g. Type mismatch is more severe than Value mismatch)
-        W_TYPE = 0.5
-        W_VALUE = 0.35
-        W_TOPOLOGY = 0.1
-
         center1 = next(n for n in sg1.nodes if n.id == sg1.center_node_id)
         center2 = next(n for n in sg2.nodes if n.id == sg2.center_node_id)
 
@@ -173,7 +173,7 @@ class HeuristicMatchingAlgorithm(MatchingAlgorithm):
 
         dist_topology = 1.0 - (intersection / union) if union > 0 else 1.0
 
-        total_dist = (dist_type * W_TYPE) + (dist_value * W_VALUE) + (dist_topology * W_TOPOLOGY)
+        total_dist = (dist_type * self.w_type) + (dist_value * self.w_value) + (dist_topology * self.w_topology)
         return total_dist
 
     def _are_nodes_semantically_equal(self, n1: Node, n2: Node) -> bool:

@@ -6,9 +6,9 @@
     "build": "tsc",
     "playwright-performance-reporter-converter": "ts-node ./src/playwright-performance-reporter-converter.ts ./data/base.json --output ./data/base.heapsnapshot && ts-node ./src/playwright-performance-reporter-converter.ts ./data/modified.json --output ./data/modified.heapsnapshot",
     "v8:runtime-converter": "ts-node ./src/runtime-converter.ts",
-    "v8:causal-link": "PYTHONPATH=\"${PYTHONPATH}:$(pwd)/../../packages/@js-heap-inspector-data-science/src\" && python3 -m causal_link --baseline ./data/base.runtime.json --modified ./data/modified.runtime.json --codeEvolution ./data/codeEvolution.json --output result.json",
-    "v8:causal-link:primitive": "yarn run v8:causal-link --strategy primitive",
-    "v8:causal-link:heuristic-greedy": "yarn run v8:causal-link --strategy heuristic-greedy",
+    "v8:causal-link": "PYTHONPATH=\"${PYTHONPATH}:$(pwd)/../../packages/@js-heap-inspector-data-science/src\" && python src/causal_link.py --baseline ./data/base.runtime.json --modified ./data/modified.runtime.json --codeEvolution ./data/codeEvolution.json --output ./data/result.json",
+    "v8:causal-link:primitive": "yarn run v8:causal-link --settings ./modes/primitive.json",
+    "v8:causal-link:heuristic-greedy": "yarn run v8:causal-link --settings ./modes/heuristic-greedy.json",
     "v8:full-runtime-converter": "yarn run v8:runtime-converter ./data/base.heapsnapshot --output ./data/base.runtime.json && yarn run v8:runtime-converter ./data/modified.heapsnapshot --output ./data/modified.runtime.json",
     "v8:full-causal-link:primitive": "yarn run v8:full-runtime-converter && yarn run v8:causal-link:primitive",
     "v8:full-causal-link:heuristic-greedy": "yarn run playwright-performance-reporter-converter && yarn run v8:full-runtime-converter && yarn run v8:causal-link:heuristic-greedy"

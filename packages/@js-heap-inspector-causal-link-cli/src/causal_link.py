@@ -30,12 +30,19 @@ def main():
     parser = argparse.ArgumentParser(description="Compare two V8 heap snapshots in common runtime format.")
     parser.add_argument("--baseline", required=True, help="Path to the baseline runtime JSON file.")
     parser.add_argument("--modified", required=True, help="Path to the modified runtime JSON file.")
-    parser.add_argument("--strategy", default="heuristic-one-hop", choices=STRATEGY_MAP.keys(),
-                        help="Causal link strategy to use.")
+    parser.add_argument("--settings", help="Path to the settings JSON file.")
     parser.add_argument("--codeEvolution", help="Path to the code evolution JSON file.")
     parser.add_argument("--output", help="Path to save the comparison result (JSON).")
 
     args = parser.parse_args()
+
+    settings = {}
+    if args.settings:
+        with open(args.settings, 'r') as f:
+            settings = json.load(f)
+
+    strategy_name = settings.get("strategy") or "unknown"
+    strategy_params = settings.get("parameters", {})
 
     parser_service = RuntimeParserService()
 
@@ -55,19 +62,19 @@ def main():
             raise InvalidRuntimeError("Modified runtime has no nodes.")
 
         # Get strategy components
-        strategy = STRATEGY_MAP.get(args.strategy)
+        strategy = STRATEGY_MAP.get(strategy_name)
         if not strategy:
-            raise UnsupportedAlgorithmError(f"Strategy '{args.strategy}' is not supported.")
+            raise UnsupportedAlgorithmError(f"Strategy '{strategy_name}' is not supported.")
 
         with open(args.codeEvolution, 'r') as f:
             code_evolutions_raw = f.read()
         code_evolutions = json.loads(code_evolutions_raw)
         code_evolutions_baseline = []
         code_evolutions_modified = []
-        
+
         for code_evolution in code_evolutions:
             parsed_code_evolution = CodeEvolution.model_validate(code_evolution)
-            
+
             if parsed_code_evolution.modificationSource == "base":
                 code_evolutions_baseline.append(parsed_code_evolution)
             if parsed_code_evolution.modificationSource == "modified":
@@ -79,7 +86,10 @@ def main():
         service = RuntimeCausalLinkService(
             differentiation_algorithm=strategy["matching"],
             subgraph_algorithm=strategy["subgraph"],
-            code_link_algorithm=strategy["code_link"]
+            code_link_algorithm=strategy["code_link"],
+            differentiation_params=strategy_params.get("matching"),
+            subgraph_params=strategy_params.get("subgraph"),
+            code_link_params=strategy_params.get("code_link")
         )
 
         matching_result, code_links = service.compare(

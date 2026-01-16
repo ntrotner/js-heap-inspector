@@ -9,7 +9,7 @@ class MatchingAlgorithm(ABC):
     modifying, and identifying deltas between two heap runtimes.
     """
 
-    def __init__(self, runtime_baseline: Runtime, subgraphs_baseline: List[Subgraph], runtime_modified: Runtime, subgraphs_modified: List[Subgraph]):
+    def __init__(self, runtime_baseline: Runtime, subgraphs_baseline: List[Subgraph], runtime_modified: Runtime, subgraphs_modified: List[Subgraph], **kwargs):
         """
         Initializes the service with a specific matching algorithm.
         

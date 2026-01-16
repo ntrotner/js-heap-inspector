@@ -7,7 +7,7 @@ class CodeLinkAlgorithm(ABC):
     Abstract base class for code link algorithms.
     """
 
-    def __init__(self, matching_result: MatchingResult, runtime_baseline: Runtime, code_changes_baseline: List[CodeEvolution], runtime_modified: Runtime, code_changes_modified: List[CodeEvolution]):
+    def __init__(self, matching_result: MatchingResult, runtime_baseline: Runtime, code_changes_baseline: List[CodeEvolution], runtime_modified: Runtime, code_changes_modified: List[CodeEvolution], **kwargs):
         """
         Initializes the service with a specific matching algorithm.
         
