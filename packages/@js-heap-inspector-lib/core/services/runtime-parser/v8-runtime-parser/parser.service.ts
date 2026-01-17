@@ -1,7 +1,10 @@
 import {
   createEdgeExtended,
   createNodeExtended,
+  type CustomV8RuntimeSchema,
   type EdgeExtended,
+  type EnergyAccessRecording,
+  type EnergyMetric,
   type NodeExtended,
   type StackCommon,
   type TraceFunctionInfo,
@@ -10,6 +13,9 @@ import {
   type V8RuntimeSchema,
   type V8SupportedRuntime,
 } from '../../../entities';
+import {
+  EnergyParserService,
+} from '../../energy-parser';
 
 /**
  * V8 Runtime Parser
@@ -18,7 +24,7 @@ export class V8Parser implements V8RuntimeParser {
   /**
    * V8 Runtime Schema
    */
-  private v8Runtime: V8RuntimeSchema | undefined;
+  private v8Runtime: CustomV8RuntimeSchema | undefined;
 
   /**
    * Parsed runtime
@@ -26,9 +32,24 @@ export class V8Parser implements V8RuntimeParser {
   private runtime: V8SupportedRuntime | undefined;
 
   /**
+   * Energy parser service
+   */
+  private energyParserService: EnergyParserService | undefined;
+
+  /**
    * Global strings pool
    */
   private strings: string[] = [];
+
+  /**
+   * Energy access recording
+   */
+  private energyAccessRecording: EnergyAccessRecording | undefined;
+
+  /**
+   * Energy access node id mapping
+   */
+  private energyAccessNodeIdMapping: Map<string, EnergyMetric> | undefined;
 
   public isCompatibleRuntimeSchema(_runtime: unknown): _runtime is V8RuntimeSchema {
     return true;
@@ -38,7 +59,7 @@ export class V8Parser implements V8RuntimeParser {
    * @inheritDoc
    */
   public convert(): V8SupportedRuntime {
-    if (!this.v8Runtime) {
+    if (!this.v8Runtime || !this.energyParserService) {
       throw new Error('V8Parser: runtime schema is not loaded. Call load() first.');
     }
 
@@ -52,6 +73,7 @@ export class V8Parser implements V8RuntimeParser {
     const nodeFieldCount = meta.node_fields.length;
     const edgeFieldCount = meta.edge_fields.length;
     this.strings = strings;
+    this.parseNodeEnergy();
 
     // Safety checks
     if (nodeFieldCount <= 0 || edgeFieldCount <= 0) {
@@ -63,6 +85,7 @@ export class V8Parser implements V8RuntimeParser {
     const nodeByOffset = new Map<number, NodeExtended>();
     const parsedNodes = [] as NodeExtended[];
 
+    console.log('Starting to parse nodes');
     for (let i = 0; i < snapshot.node_count; i++) {
       const base = i * nodeFieldCount;
       const node = this.buildNodes(nodes, base, typeNames, nodeFieldCount, meta.node_fields);
@@ -75,6 +98,7 @@ export class V8Parser implements V8RuntimeParser {
     const edgeCursor = 0;
     const parsedEdges = [] as EdgeExtended[];
     const edgeIdCounter = 0;
+    console.log('Starting to parse edges');
     for (const fromNode of parsedNodes) {
       const edgeCount: number = (fromNode as any)?.__edgeCount ?? 0;
       const edgesForFromNode = this.buildEdges(
@@ -94,6 +118,7 @@ export class V8Parser implements V8RuntimeParser {
       delete (fromNode as any).__offset;
     }
 
+    console.log('Starting to parse stacks');
     const parsedStacks = this.buildTraceStack();
     if (!parsedStacks) {
       throw new Error('V8Parser: invalid trace tree in V8 snapshot.');
@@ -110,6 +135,7 @@ export class V8Parser implements V8RuntimeParser {
 
   public load(runtime: V8RuntimeSchema): void {
     this.v8Runtime = runtime;
+    this.energyParserService = new EnergyParserService();
     this.runtime = undefined;
   }
 
@@ -128,6 +154,39 @@ export class V8Parser implements V8RuntimeParser {
     }
 
     return this.strings[index] ?? '';
+  }
+
+  /**
+   * Find all energy metrics for a given node
+   *
+   * @param nodeId
+   */
+  private getNodeEnergy(nodeId: string): EnergyMetric | undefined {
+    if (!this.energyAccessNodeIdMapping) {
+      return undefined;
+    }
+
+    return this.energyAccessNodeIdMapping.get(nodeId);
+  }
+
+  /**
+   * Initialize node energy and create mappings
+   */
+  private parseNodeEnergy(): void {
+    if (!this.v8Runtime) {
+      return;
+    }
+
+    this.energyAccessRecording = this.energyParserService?.convertToEnergyAccessRecording(this.v8Runtime);
+    if (!this.energyAccessRecording) {
+      return;
+    }
+
+    this.energyAccessNodeIdMapping = new Map<string, EnergyMetric>();
+    for (const metric of this.energyAccessRecording?.metrics ?? []) {
+      metric.nodeId = String(metric.nodeId);
+      this.energyAccessNodeIdMapping.set(metric.nodeId, metric);
+    }
   }
 
   /**
@@ -384,6 +443,7 @@ export class V8Parser implements V8RuntimeParser {
       [],
       typeName,
       typeName === 'synthetic' && name.toLowerCase().includes('root'),
+      this.getNodeEnergy(id),
       name,
       traceNodeId > 0 ? String(traceNodeId) : undefined,
     );

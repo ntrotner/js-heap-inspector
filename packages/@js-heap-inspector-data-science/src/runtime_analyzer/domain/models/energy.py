@@ -1,6 +1,6 @@
 from .amount import Amount
 from pydantic import BaseModel
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, Optional
 
 T = TypeVar("T")
 
@@ -13,4 +13,13 @@ class Energy(BaseModel):
     unit: str
 
 class SoftwareEnergyRecording(BaseModel, Generic[T]):
-    metrics: T
+    metrics: Optional[T]
+    
+class EnergyAccessMetric(BaseModel):
+    nodeId: str
+    allocationTime: Optional[float]
+    readCounter: int
+    writeCounter: int
+    
+class EnergyMetric(EnergyAccessMetric):
+    pass

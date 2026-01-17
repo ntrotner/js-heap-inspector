@@ -2,10 +2,8 @@ import {
   type NodeCore,
   type NodeCommon,
   type NodeExtended,
+  type EnergyMetric,
 } from '../models';
-import {
-  createSoftwareEnergyRecording,
-} from './energy.factory';
 
 export function createNodeCore(id: string, edgeIds: string[]): NodeCore {
   return {
@@ -24,7 +22,6 @@ export function createNodeCommon(
     id,
     edgeIds,
     type,
-    energy: createSoftwareEnergyRecording([]),
     root,
   };
 }
@@ -34,6 +31,7 @@ export function createNodeExtended(
   edgeIds: string[],
   type: string,
   root: boolean,
+  energy?: EnergyMetric,
   value?: string,
   traceId?: string,
 ): NodeExtended {
@@ -41,7 +39,7 @@ export function createNodeExtended(
     id,
     edgeIds,
     type,
-    energy: createSoftwareEnergyRecording([]),
+    energy,
     root,
     value,
     traceId,

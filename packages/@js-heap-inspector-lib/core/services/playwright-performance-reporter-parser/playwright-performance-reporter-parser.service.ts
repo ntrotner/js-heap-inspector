@@ -1,15 +1,14 @@
-import fs from "node:fs";
+import fs from 'node:fs';
 import {
-  LifecycleMetric,
-  PerformanceReportJson,
-  PlaywrightPerformanceMetric
-} from "../../entities";
+  type LifecycleMetric,
+  type PerformanceReportJson,
+  type PlaywrightPerformanceMetric,
+} from '../../entities';
 
 export class PlaywrightPerformanceReporterParserService {
-
   /**
    * Parses all available heap snapshots from the given report file
-   * 
+   *
    * @param sourceFile
    */
   public async parse(sourceFile: string): Promise<string[]> {
@@ -21,28 +20,28 @@ export class PlaywrightPerformanceReporterParserService {
 
   /**
    * Parses all available heap snapshots from the given report file
-   * 
+   *
    * @param filename
    */
   private async getAllAvailableRawHeapSnapshots(filename: string): Promise<string[]> {
     return Promise.all(
       this.getAllMetricsFromReport(filename)
-        .flatMap(metric => metric.heapObjectsTracking ?? [])
+        .flatMap(metric => metric.heapObjectsTracking ?? []),
     );
   }
-  
+
   private getAllMetricsFromReport(filename: string): PlaywrightPerformanceMetric[] {
     const fileContent = fs.readFileSync(filename, 'utf8');
     const serializedReport: PerformanceReportJson = JSON.parse(fileContent);
     const accumulator = [] as PlaywrightPerformanceMetric[];
 
     for (const run of serializedReport) {
-      for (const runId in run) {
-        for (const testStep in run[runId]) {
+      for (const runId of Object.keys(run)) {
+        for (const testStep of Object.keys(run[runId])) {
           const metrics = ['startMetrics', 'stopMetrics', 'samplingMetrics'];
 
           for (const metric of metrics) {
-            // @ts-ignore
+            // @ts-expect-error -- force type casting
             const metricsData = run[runId][testStep][metric] as LifecycleMetric[];
 
             for (const metricData of metricsData) {

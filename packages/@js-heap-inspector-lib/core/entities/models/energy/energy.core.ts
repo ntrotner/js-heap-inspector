@@ -8,5 +8,6 @@ export type Energy = {
 };
 
 export type SoftwareEnergyRecording<T = unknown> = {
-  metrics: T;
+  metrics?: T;
 };
+
