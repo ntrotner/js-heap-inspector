@@ -28,7 +28,8 @@ program
       const runtime = await orchestrator.parse(inputPath);
       const latestRecording = runtime.at(-1);
       if (!latestRecording) {
-        console.error(`Error: Failed to parse playwright-performance-reporter run. It might be malformed or an unsupported version.`)
+        console.error('Error: Failed to parse playwright-performance-reporter run. It might be malformed or an unsupported version.');
+        // eslint-disable-next-line unicorn/no-process-exit -- CLI program
         process.exit(1);
       }
 

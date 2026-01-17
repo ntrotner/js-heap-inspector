@@ -34,6 +34,7 @@ program
         process.exit(1);
       }
 
+      console.log('Starting to parse runtime...');
       const orchestrator = new RuntimeParserOrchestrator();
       const runtime = orchestrator.parse(snapshotData);
       if (!runtime) {
@@ -42,17 +43,59 @@ program
         process.exit(1);
       }
 
-      const outputData = JSON.stringify(runtime, null, 2);
-      const outputPath = options.output ?? `${path.basename(inputPath, path.extname(inputPath))}.runtime.json`;
-      fs.writeFileSync(outputPath, outputData, 'utf8');
-
       console.log('Runtime Converter Statistics');
-      console.log(`Input file: ${inputPath}`);
-      console.log(`Output file: ${outputPath}`);
       console.log(`Nodes: ${runtime.nodes.length}`);
       console.log(`Edges: ${runtime.edges.length}`);
       console.log(`Stacks: ${runtime.stacks.length}`);
+
+      const outputPath = options.output ?? `${path.basename(inputPath, path.extname(inputPath))}.runtime.json`;
+      fs.rmSync(outputPath, {force: true});
+      const writeStream = fs.createWriteStream(outputPath);
+      writeStream.write('{');
+      writeStream.write('"nodes": [');
+
+      let energyCounter = 0;
+      for (const [index, node] of runtime.nodes.entries()) {
+        if ('energy' in node) {
+          energyCounter++;
+        }
+
+        writeStream.write(JSON.stringify(node, null, 2));
+        if (index < runtime.nodes.length - 1) {
+          writeStream.write(',');
+        }
+      }
+
+      writeStream.write(']');
+
+      writeStream.write(',\n"edges": [');
+
+      for (const [index, edge] of runtime.edges.entries()) {
+        writeStream.write(JSON.stringify(edge, null, 2));
+        if (index < runtime.edges.length - 1) {
+          writeStream.write(',');
+        }
+      }
+
+      writeStream.write(']');
+
+      writeStream.write(',\n"stacks": [');
+
+      for (const [index, stack] of runtime.stacks.entries()) {
+        writeStream.write(JSON.stringify(stack, null, 2));
+        if (index < runtime.stacks.length - 1) {
+          writeStream.write(',');
+        }
+      }
+
+      writeStream.write(']');
+      writeStream.write('}');
+      writeStream.end();
+      console.log(`Energy: ${energyCounter}`);
       console.log('');
+      console.log('Writing output file...');
+      console.log(`Input file: ${inputPath}`);
+      console.log(`Output file: ${outputPath}`);
     } catch (error) {
       console.error(`An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`);
       // eslint-disable-next-line unicorn/no-process-exit -- CLI program
