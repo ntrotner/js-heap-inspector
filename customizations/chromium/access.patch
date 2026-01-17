@@ -1,0 +1,653 @@
+From bbbdff6ea7d63aac37b1b03ec8522383f9d99835 Mon Sep 17 00:00:00 2001
+From: Nikita Trotner <nikita@ttnr.me>
+Date: Sat, 17 Jan 2026 14:07:10 +0100
+Subject: [PATCH] feat: integrate access based tracking
+
+---
+ BUILD.bazel                             |   2 +
+ BUILD.gn                                |   1 +
+ src/execution/isolate-inl.h             |  10 +
+ src/execution/isolate.h                 |   3 +
+ src/heap/factory.cc                     |  12 +-
+ src/heap/heap-object-tracker.cc         | 238 ++++++++++++++++++++++++
+ src/heap/heap-object-tracker.h          |  70 +++++++
+ src/objects/tagged-field-inl.h          |  31 +++
+ src/profiler/heap-profiler.cc           |  26 ++-
+ src/profiler/heap-profiler.h            |  11 ++
+ src/profiler/heap-snapshot-generator.cc |   9 +
+ 11 files changed, 410 insertions(+), 3 deletions(-)
+ create mode 100644 src/heap/heap-object-tracker.cc
+ create mode 100644 src/heap/heap-object-tracker.h
+
+diff --git a/BUILD.bazel b/BUILD.bazel
+index 4b1f8e19..3773f06a 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -1792,6 +1792,8 @@ filegroup(
+         "src/heap/heap-layout.cc",
+         "src/heap/heap-layout.h",
+         "src/heap/heap-layout-inl.h",
++        "src/heap/heap-object-tracker.cc",
++        "src/heap/heap-object-tracker.h",
+         "src/heap/heap-layout-tracer.cc",
+         "src/heap/heap-layout-tracer.h",
+         "src/heap/heap-utils.h",
+diff --git a/BUILD.gn b/BUILD.gn
+index cfe31c21..811ec3d1 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -5871,6 +5871,7 @@ v8_source_set("v8_base_without_compiler") {
+     "src/heap/heap-controller.cc",
+     "src/heap/heap-layout-tracer.cc",
+     "src/heap/heap-layout.cc",
++    "src/heap/heap-object-tracker.cc",
+     "src/heap/heap-verifier.cc",
+     "src/heap/heap-visitor.cc",
+     "src/heap/heap-write-barrier.cc",
+diff --git a/src/execution/isolate-inl.h b/src/execution/isolate-inl.h
+index 393b3d61..4c9062f0 100644
+--- a/src/execution/isolate-inl.h
++++ b/src/execution/isolate-inl.h
+@@ -8,7 +8,9 @@
+ #include "src/execution/isolate.h"
+ // Include the non-inl header before the rest of the headers.
+ 
++#include "src/heap/heap-inl.h"
+ #include "src/objects/contexts-inl.h"
++#include "src/profiler/heap-profiler.h"
+ #include "src/objects/js-function.h"
+ #include "src/objects/lookup-inl.h"
+ #include "src/objects/objects-inl.h"
+@@ -248,6 +250,14 @@ SetCurrentIsolateScope::~SetCurrentIsolateScope() {
+   Isolate::SetCurrent(previous_isolate_);
+ }
+ 
++inline HeapProfiler* Isolate::heap_profiler() const {
++  return heap()->heap_profiler();
++}
++
++inline HeapObjectTracker* Isolate::heap_object_tracker() const {
++  return heap_profiler()->object_tracker();
++}
++
+ }  // namespace v8::internal
+ 
+ #endif  // V8_EXECUTION_ISOLATE_INL_H_
+diff --git a/src/execution/isolate.h b/src/execution/isolate.h
+index 88062b1c..1eb816c3 100644
+--- a/src/execution/isolate.h
++++ b/src/execution/isolate.h
+@@ -137,6 +137,7 @@ class GlobalHandles;
+ class GlobalSafepoint;
+ class HandleScopeImplementer;
+ class HeapObjectToIndexHashMap;
++class HeapObjectTracker;
+ class HeapProfiler;
+ class InnerPointerToCodeCache;
+ class LazyCompileDispatcher;
+@@ -1182,6 +1183,8 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
+   StackGuard* stack_guard() { return isolate_data()->stack_guard(); }
+   Heap* heap() { return &heap_; }
+   const Heap* heap() const { return &heap_; }
++  HeapProfiler* heap_profiler() const;
++  HeapObjectTracker* heap_object_tracker() const;
+   ReadOnlyHeap* read_only_heap() const { return read_only_heap_; }
+   static Isolate* FromHeap(const Heap* heap) {
+     return reinterpret_cast<Isolate*>(reinterpret_cast<Address>(heap) -
+diff --git a/src/heap/factory.cc b/src/heap/factory.cc
+index d863d8c3..505f59b8 100644
+--- a/src/heap/factory.cc
++++ b/src/heap/factory.cc
+@@ -26,6 +26,7 @@
+ #include "src/heap/heap-allocator-inl.h"
+ #include "src/heap/heap-inl.h"
+ #include "src/heap/heap-layout-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/heap/incremental-marking.h"
+ #include "src/heap/large-page-inl.h"
+ #include "src/heap/mark-compact-inl.h"
+@@ -302,8 +303,17 @@ Handle<Code> Factory::CodeBuilder::Build() {
+ Tagged<HeapObject> Factory::AllocateRaw(int size, AllocationType allocation,
+                                         AllocationAlignment alignment,
+                                         AllocationHint hint) {
+-  return allocator()->AllocateRawWith<HeapAllocator::kRetryOrFail>(
++  Tagged<HeapObject> result =
++      allocator()->AllocateRawWith<HeapAllocator::kRetryOrFail>(
+       size, allocation, AllocationOrigin::kRuntime, alignment, hint);
++
++  // Track allocation using node ID
++  if (V8_UNLIKELY(isolate()->heap_object_tracker() &&
++                  isolate()->heap_object_tracker()->IsProfiling())) {
++    isolate()->heap_object_tracker()->RecordAllocation(result);
++  }
++
++  return result;
+ }
+ 
+ Tagged<HeapObject> Factory::AllocateRawWithAllocationSite(
+diff --git a/src/heap/heap-object-tracker.cc b/src/heap/heap-object-tracker.cc
+new file mode 100644
+index 00000000..55762ee9
+--- /dev/null
++++ b/src/heap/heap-object-tracker.cc
+@@ -0,0 +1,238 @@
++// Copyright 2026 the V8 project authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "src/heap/heap-object-tracker.h"
++
++#include "src/execution/isolate-inl.h"
++#include "src/handles/handles-inl.h"
++#include "src/heap/heap-inl.h"
++#include "src/profiler/heap-profiler.h"
++#include "src/profiler/output-stream-writer.h"
++
++namespace v8 {
++namespace internal {
++
++HeapObjectTracker::HeapObjectTracker(Isolate* isolate) : isolate_(isolate) {}
++
++HeapObjectTracker::~HeapObjectTracker() {
++  if (is_profiling_.load(std::memory_order_relaxed)) {
++    StopProfiling();
++  }
++}
++
++SnapshotObjectId HeapObjectTracker::GetOrAssignObjectId(
++    Tagged<HeapObject> object) {
++  HeapProfiler* profiler = isolate_->heap_profiler();
++  if (V8_UNLIKELY(profiler == nullptr)) {
++    base::MutexGuard guard(&metrics_mutex_);
++    auto it = address_to_id_.find(object.address());
++    if (it != address_to_id_.end()) {
++      return it->second;
++    }
++    SnapshotObjectId new_id =
++        static_cast<SnapshotObjectId>(address_to_id_.size() + 1);
++    address_to_id_[object.address()] = new_id;
++    return new_id;
++  }
++
++  return profiler->GetOrCreateSnapshotObjectId(object);
++}
++
++void HeapObjectTracker::RecordAllocation(Tagged<HeapObject> object) {
++  if (V8_UNLIKELY(!is_profiling_.load(std::memory_order_relaxed))) return;
++
++  static thread_local bool in_record_access = false;
++  if (in_record_access) return;
++  in_record_access = true;
++
++  SnapshotObjectId id = GetOrAssignObjectId(object);
++  double time_ms = isolate_->time_millis_since_init();
++
++  {
++    base::MutexGuard guard(&metrics_mutex_);
++    auto it = metrics_.find(id);
++    if (it != metrics_.end()) {
++      it->second.allocation_time_ms = time_ms;
++    } else {
++      metrics_[id] = {id, time_ms, 0, 0};
++    }
++  }
++
++  in_record_access = false;
++}
++
++void HeapObjectTracker::RecordLoad(Tagged<HeapObject> object) {
++  if (V8_UNLIKELY(!is_profiling_.load(std::memory_order_relaxed))) return;
++
++  static thread_local bool in_record_access = false;
++  if (in_record_access) return;
++  in_record_access = true;
++
++  static thread_local HeapObjectTracker* last_tracker = nullptr;
++  static thread_local uint32_t last_session_id = 0;
++  static thread_local uint32_t last_gc_count = 0;
++  static thread_local Address last_host = kNullAddress;
++  static thread_local SnapshotObjectId last_id =
++      v8::HeapProfiler::kUnknownObjectId;
++
++  uint32_t current_session_id = session_id_.load(std::memory_order_relaxed);
++  uint32_t current_gc_count = isolate_->heap()->gc_count().value();
++  Address host_addr = object.address();
++  SnapshotObjectId id;
++
++  if (V8_LIKELY(this == last_tracker && host_addr == last_host &&
++                current_session_id == last_session_id &&
++                current_gc_count == last_gc_count)) {
++    id = last_id;
++  } else {
++    HeapProfiler* profiler = isolate_->heap_profiler();
++    if (V8_UNLIKELY(profiler == nullptr)) {
++      in_record_access = false;
++      return;
++    }
++    id = profiler->GetSnapshotObjectId(object);
++    last_tracker = this;
++    last_session_id = current_session_id;
++    last_gc_count = current_gc_count;
++    last_host = host_addr;
++    last_id = id;
++  }
++
++  if (id != v8::HeapProfiler::kUnknownObjectId) {
++    base::MutexGuard guard(&metrics_mutex_);
++    auto it = metrics_.find(id);
++    if (it != metrics_.end()) {
++      it->second.load_count++;
++    } else {
++      metrics_[id] = {id, 0.0, 1, 0};
++    }
++  }
++
++  in_record_access = false;
++}
++
++void HeapObjectTracker::RecordStore(Tagged<HeapObject> object) {
++  if (V8_UNLIKELY(!is_profiling_.load(std::memory_order_relaxed))) return;
++
++  static thread_local bool in_record_access = false;
++  if (in_record_access) return;
++  in_record_access = true;
++
++  static thread_local HeapObjectTracker* last_tracker = nullptr;
++  static thread_local uint32_t last_session_id = 0;
++  static thread_local uint32_t last_gc_count = 0;
++  static thread_local Address last_host = kNullAddress;
++  static thread_local SnapshotObjectId last_id =
++      v8::HeapProfiler::kUnknownObjectId;
++
++  uint32_t current_session_id = session_id_.load(std::memory_order_relaxed);
++  uint32_t current_gc_count = isolate_->heap()->gc_count().value();
++  Address host_addr = object.address();
++  SnapshotObjectId id;
++
++  if (V8_LIKELY(this == last_tracker && host_addr == last_host &&
++                current_session_id == last_session_id &&
++                current_gc_count == last_gc_count)) {
++    id = last_id;
++  } else {
++    HeapProfiler* profiler = isolate_->heap_profiler();
++    if (V8_UNLIKELY(profiler == nullptr)) {
++      in_record_access = false;
++      return;
++    }
++    id = profiler->GetSnapshotObjectId(object);
++    last_tracker = this;
++    last_session_id = current_session_id;
++    last_gc_count = current_gc_count;
++    last_host = host_addr;
++    last_id = id;
++  }
++
++  if (id != v8::HeapProfiler::kUnknownObjectId) {
++    base::MutexGuard guard(&metrics_mutex_);
++    auto it = metrics_.find(id);
++    if (it != metrics_.end()) {
++      it->second.store_count++;
++    } else {
++      metrics_[id] = {id, 0.0, 0, 1};
++    }
++  }
++
++  in_record_access = false;
++}
++
++void HeapObjectTracker::StartProfiling() {
++  base::MutexGuard guard(&metrics_mutex_);
++
++  if (is_profiling_.load(std::memory_order_relaxed)) return;
++
++  session_id_.fetch_add(1, std::memory_order_relaxed);
++  is_profiling_.store(true, std::memory_order_release);
++  metrics_.clear();
++  address_to_id_.clear();
++  isolate_->heap()->AddHeapObjectAllocationTracker(this);
++}
++
++void HeapObjectTracker::StopProfiling() {
++  if (!is_profiling_.load(std::memory_order_relaxed)) return;
++
++  is_profiling_.store(false, std::memory_order_release);
++  isolate_->heap()->RemoveHeapObjectAllocationTracker(this);
++}
++
++bool HeapObjectTracker::HasMetrics() const {
++  base::MutexGuard guard(&metrics_mutex_);
++  return !metrics_.empty();
++}
++
++bool HeapObjectTracker::ExportMetrics(OutputStreamWriter* writer) {
++  base::MutexGuard guard(&metrics_mutex_);
++
++  if (metrics_.empty()) return false;
++
++  writer->AddString("{\"nodes\":[");
++
++  bool first = true;
++  for (const auto& [node_id, metrics] : metrics_) {
++    if (node_id == v8::HeapProfiler::kUnknownObjectId) continue;
++
++    if (!first) writer->AddCharacter(',');
++    first = false;
++
++    writer->AddString("{\"id\":");
++    writer->AddNumber(node_id);
++    writer->AddString(",\"allocation_time_ms\":");
++
++    char buffer[64];
++    base::OS::SNPrintF(buffer, sizeof(buffer), "%.3f",
++                       metrics.allocation_time_ms);
++    writer->AddString(buffer);
++
++    writer->AddString(",\"load_count\":");
++    writer->AddNumber(metrics.load_count);
++    writer->AddString(",\"store_count\":");
++    writer->AddNumber(metrics.store_count);
++    writer->AddCharacter('}');
++  }
++
++  writer->AddString("]}");
++  return true;
++}
++
++void HeapObjectTracker::AllocationEvent(Address addr, int size) {
++  // We already track allocations via Factory::AllocateRaw for better accuracy.
++}
++
++void HeapObjectTracker::MoveEvent(Address from, Address to, int size) {
++  base::MutexGuard guard(&metrics_mutex_);
++  auto it = address_to_id_.find(from);
++  if (it != address_to_id_.end()) {
++    SnapshotObjectId id = it->second;
++    address_to_id_.erase(it);
++    address_to_id_[to] = id;
++  }
++}
++
++}  // namespace internal
++}  // namespace v8
+diff --git a/src/heap/heap-object-tracker.h b/src/heap/heap-object-tracker.h
+new file mode 100644
+index 00000000..7afc3a99
+--- /dev/null
++++ b/src/heap/heap-object-tracker.h
+@@ -0,0 +1,70 @@
++// Copyright 2026 the V8 project authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef V8_HEAP_HEAP_OBJECT_TRACKER_H_
++#define V8_HEAP_HEAP_OBJECT_TRACKER_H_
++
++#include <atomic>
++#include <unordered_map>
++
++#include "include/v8-profiler.h"
++#include "src/base/macros.h"
++#include "src/base/platform/mutex.h"
++#include "src/common/globals.h"
++#include "src/heap/heap.h"
++
++namespace v8 {
++namespace internal {
++
++class Isolate;
++class OutputStreamWriter;
++
++struct ObjectAccessMetrics {
++  SnapshotObjectId node_id;
++  double allocation_time_ms;
++  uint64_t load_count;
++  uint64_t store_count;
++};
++
++class V8_EXPORT_PRIVATE HeapObjectTracker : public HeapObjectAllocationTracker {
++ public:
++  explicit HeapObjectTracker(Isolate* isolate);
++  ~HeapObjectTracker() override;
++
++  HeapObjectTracker(const HeapObjectTracker&) = delete;
++  HeapObjectTracker& operator=(const HeapObjectTracker&) = delete;
++
++  void RecordAllocation(Tagged<HeapObject> object);
++  void RecordLoad(Tagged<HeapObject> object);
++  void RecordStore(Tagged<HeapObject> object);
++
++  void StartProfiling();
++  void StopProfiling();
++  bool IsProfiling() const {
++    return is_profiling_.load(std::memory_order_relaxed);
++  }
++
++  bool ExportMetrics(OutputStreamWriter* writer);
++  bool HasMetrics() const;
++
++  // HeapObjectAllocationTracker implementation
++  void AllocationEvent(Address addr, int size) override;
++  void MoveEvent(Address from, Address to, int size) override;
++
++ private:
++  SnapshotObjectId GetOrAssignObjectId(Tagged<HeapObject> object);
++
++  Isolate* isolate_;
++  std::atomic<bool> is_profiling_{false};
++  std::atomic<uint32_t> session_id_{0};
++  mutable base::Mutex metrics_mutex_;
++
++  std::unordered_map<SnapshotObjectId, ObjectAccessMetrics> metrics_;
++  std::unordered_map<Address, SnapshotObjectId> address_to_id_;
++};
++
++}  // namespace internal
++}  // namespace v8
++
++#endif  // V8_HEAP_HEAP_OBJECT_TRACKER_H_
+diff --git a/src/objects/tagged-field-inl.h b/src/objects/tagged-field-inl.h
+index 7ff9b9ba..0669b353 100644
+--- a/src/objects/tagged-field-inl.h
++++ b/src/objects/tagged-field-inl.h
+@@ -12,6 +12,7 @@
+ 
+ #include "src/common/globals.h"
+ #include "src/common/ptr-compr-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/heap/heap-write-barrier-inl.h"
+ #include "src/objects/tagged.h"
+ 
+@@ -223,6 +224,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(Tagged<HeapObject> host,
+                                                       int offset) {
+   Tagged_t value = *location(host, offset);
+   DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
++
++  // Track load by node ID
++  if (kFieldOffset + offset != HeapObject::kMapOffset &&
++      V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(host);
++  }
++
+   return PtrType(tagged_to_full(host.ptr(), value));
+ }
+ 
+@@ -233,6 +242,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(
+     PtrComprCageBase cage_base, Tagged<HeapObject> host, int offset) {
+   Tagged_t value = *location(host, offset);
+   DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
++
++  // Track load by node ID
++  if (kFieldOffset + offset != HeapObject::kMapOffset &&
++      V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(host);
++  }
++
+   return PtrType(tagged_to_full(cage_base, value));
+ }
+ 
+@@ -247,6 +264,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
+   DCHECK_NE(kFieldOffset, HeapObject::kMapOffset);
+   *location(host) = full_to_tagged(ptr);
+ #endif
++
++  // Track store by node ID
++  if (kFieldOffset != HeapObject::kMapOffset &&
++      V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(host);
++  }
+ }
+ 
+ // static
+@@ -260,6 +284,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
+   DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
+   *location(host, offset) = full_to_tagged(ptr);
+ #endif
++
++  // Track store by node ID
++  if (kFieldOffset + offset != HeapObject::kMapOffset &&
++      V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(host);
++  }
+ }
+ 
+ // static
+diff --git a/src/profiler/heap-profiler.cc b/src/profiler/heap-profiler.cc
+index c123645e..e0cb50d3 100644
+--- a/src/profiler/heap-profiler.cc
++++ b/src/profiler/heap-profiler.cc
+@@ -15,6 +15,7 @@
+ #include "src/heap/combined-heap.h"
+ #include "src/heap/heap-inl.h"
+ #include "src/heap/heap-layout-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/heap/heap.h"
+ #include "src/objects/cpp-heap-object-wrapper-inl.h"
+ #include "src/objects/js-array-buffer-inl.h"
+@@ -261,6 +262,12 @@ void HeapProfiler::StartHeapObjectsTracking(bool track_allocations) {
+   if (track_allocations) {
+     allocation_tracker_.reset(new AllocationTracker(ids_.get(), names_.get()));
+     heap()->AddHeapObjectAllocationTracker(this);
++
++    // Also start object access tracking when allocation timeline is requested
++    if (!object_tracker_) {
++      object_tracker_.reset(new HeapObjectTracker(heap()->isolate()));
++    }
++    object_tracker_->StartProfiling();
+   }
+ }
+ 
+@@ -276,6 +283,9 @@ void HeapProfiler::StopHeapObjectsTracking() {
+     MaybeClearStringsStorage();
+     heap()->RemoveHeapObjectAllocationTracker(this);
+   }
++  if (object_tracker_) {
++    object_tracker_->StopProfiling();
++  }
+ }
+ 
+ int HeapProfiler::GetSnapshotsCount() const {
+@@ -289,11 +299,23 @@ HeapSnapshot* HeapProfiler::GetSnapshot(int index) {
+ }
+ 
+ SnapshotObjectId HeapProfiler::GetSnapshotObjectId(DirectHandle<Object> obj) {
+-  if (!IsHeapObject(*obj)) return v8::HeapProfiler::kUnknownObjectId;
+-  return ids_->FindEntry(Cast<HeapObject>(*obj).address());
++  return GetSnapshotObjectId(*obj);
++}
++
++SnapshotObjectId HeapProfiler::GetSnapshotObjectId(Tagged<Object> obj) {
++  if (!IsHeapObject(obj)) return v8::HeapProfiler::kUnknownObjectId;
++  base::MutexGuard guard(&profiler_mutex_);
++  return ids_->FindEntry(Cast<HeapObject>(obj).address());
++}
++
++SnapshotObjectId HeapProfiler::GetOrCreateSnapshotObjectId(Tagged<HeapObject> obj) {
++  base::MutexGuard guard(&profiler_mutex_);
++  return ids_->FindOrAddEntry(obj.address(), obj->Size(isolate()),
++                               HeapObjectsMap::MarkEntryAccessed::kNo);
+ }
+ 
+ SnapshotObjectId HeapProfiler::GetSnapshotObjectId(NativeObject obj) {
++  base::MutexGuard guard(&profiler_mutex_);
+   // Try to find id of regular native node first.
+   SnapshotObjectId id = ids_->FindEntry(reinterpret_cast<Address>(obj));
+   // In case no id has been found, check whether there exists an entry where the
+diff --git a/src/profiler/heap-profiler.h b/src/profiler/heap-profiler.h
+index 82d4db26..2dbaedd9 100644
+--- a/src/profiler/heap-profiler.h
++++ b/src/profiler/heap-profiler.h
+@@ -19,6 +19,7 @@ namespace v8 {
+ namespace internal {
+ 
+ // Forward declarations.
++class HeapObjectTracker;
+ class AllocationTracker;
+ class HeapObjectsMap;
+ class HeapProfiler;
+@@ -79,8 +80,13 @@ class HeapProfiler : public HeapObjectAllocationTracker {
+   bool is_sampling_allocations() { return !!sampling_heap_profiler_; }
+   AllocationProfile* GetAllocationProfile();
+ 
++  // Allocation timeline tracking
+   void StartHeapObjectsTracking(bool track_allocations);
+   void StopHeapObjectsTracking();
++
++  // Access tracking integration - automatically starts/stops with allocation timeline
++  HeapObjectTracker* object_tracker() { return object_tracker_.get(); }
++
+   AllocationTracker* allocation_tracker() const {
+     return allocation_tracker_.get();
+   }
+@@ -93,6 +99,8 @@ class HeapProfiler : public HeapObjectAllocationTracker {
+   bool IsTakingSnapshot() const;
+   HeapSnapshot* GetSnapshot(int index);
+   SnapshotObjectId GetSnapshotObjectId(DirectHandle<Object> obj);
++  SnapshotObjectId GetSnapshotObjectId(Tagged<Object> obj);
++  SnapshotObjectId GetOrCreateSnapshotObjectId(Tagged<HeapObject> obj);
+   SnapshotObjectId GetSnapshotObjectId(NativeObject obj);
+   void DeleteAllSnapshots();
+   void RemoveSnapshot(HeapSnapshot* snapshot);
+@@ -176,6 +184,9 @@ class HeapProfiler : public HeapObjectAllocationTracker {
+   std::pair<v8::HeapProfiler::GetDetachednessCallback, void*>
+       get_detachedness_callback_;
+   std::unique_ptr<HeapProfilerNativeMoveListener> native_move_listener_;
++
++  // Owned access tracker - lifecycle tied to allocation timeline profiling
++  std::unique_ptr<HeapObjectTracker> object_tracker_;
+ };
+ 
+ }  // namespace internal
+diff --git a/src/profiler/heap-snapshot-generator.cc b/src/profiler/heap-snapshot-generator.cc
+index 44f4535a..ab219a5d 100644
+--- a/src/profiler/heap-snapshot-generator.cc
++++ b/src/profiler/heap-snapshot-generator.cc
+@@ -16,6 +16,7 @@
+ #include "src/handles/global-handles.h"
+ #include "src/heap/combined-heap.h"
+ #include "src/heap/heap-layout-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/heap/heap.h"
+ #include "src/heap/safepoint.h"
+ #include "src/heap/visit-object.h"
+@@ -3547,6 +3548,14 @@ void HeapSnapshotJSONSerializer::SerializeImpl() {
+   if (writer_->aborted()) return;
+   writer_->AddString("],\n");
+ 
++  if (HeapObjectTracker* tracker = snapshot_->profiler()->object_tracker()) {
++    if (tracker->HasMetrics()) {
++      writer_->AddString("\"metrics\":");
++      tracker->ExportMetrics(writer_);
++      writer_->AddString(",\n");
++    }
++  }
++
+   writer_->AddString("\"strings\":[");
+   SerializeStrings();
+   if (writer_->aborted()) return;
+-- 
+2.52.0
+
