@@ -9,11 +9,12 @@ export function createSoftwareEnergyRecording<T>(metrics: T): SoftwareEnergyReco
   };
 }
 
-export function createEnergyAccessMetric(nodeId: string, readCounter: number, writeCounter: number, allocationTime?: number): EnergyAccessMetric {
+export function createEnergyAccessMetric(nodeId: string, readCounter: number, writeCounter: number, size: number, allocationTime?: number): EnergyAccessMetric {
   return {
     nodeId,
     allocationTime,
     readCounter,
     writeCounter,
+    size,
   };
 }

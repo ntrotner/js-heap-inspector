@@ -56,7 +56,7 @@ program
 
       let energyCounter = 0;
       for (const [index, node] of runtime.nodes.entries()) {
-        if ('energy' in node) {
+        if ((node as any).energy !== undefined) {
           energyCounter++;
         }
 

@@ -1,5 +1,6 @@
 import {
   createEdgeExtended,
+  createEnergyAccessMetric,
   createNodeExtended,
   type CustomV8RuntimeSchema,
   type EdgeExtended,
@@ -162,11 +163,12 @@ export class V8Parser implements V8RuntimeParser {
    * @param nodeId
    */
   private getNodeEnergy(nodeId: string): EnergyMetric | undefined {
+    const emptyEnergyAccessMetric = createEnergyAccessMetric(nodeId, 0, 0, 0);
     if (!this.energyAccessNodeIdMapping) {
       return undefined;
     }
 
-    return this.energyAccessNodeIdMapping.get(nodeId);
+    return this.energyAccessNodeIdMapping.get(nodeId) || emptyEnergyAccessMetric;
   }
 
   /**
@@ -438,12 +440,13 @@ export class V8Parser implements V8RuntimeParser {
     const typeName = typeNames[typeIndex] ?? 'unknown';
     const name = this.getGlobalString(nameIndex);
     const id = String(idNumber);
+    const nodeEnergy = this.getNodeEnergy(id);
     const node = createNodeExtended(
       id,
       [],
       typeName,
       typeName === 'synthetic' && name.toLowerCase().includes('root'),
-      this.getNodeEnergy(id),
+      nodeEnergy ? {...nodeEnergy, size: selfSize} : undefined,
       name,
       traceNodeId > 0 ? String(traceNodeId) : undefined,
     );

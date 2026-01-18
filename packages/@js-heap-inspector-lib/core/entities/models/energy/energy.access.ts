@@ -7,6 +7,7 @@ export type EnergyAccessMetric = {
   allocationTime?: number;
   readCounter: number;
   writeCounter: number;
+  size: number;
 };
 
 export type EnergyAccessRecording = SoftwareEnergyRecording<EnergyAccessMetric[]>;

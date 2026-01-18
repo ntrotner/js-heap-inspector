@@ -17,9 +17,10 @@ class SoftwareEnergyRecording(BaseModel, Generic[T]):
     
 class EnergyAccessMetric(BaseModel):
     nodeId: str
-    allocationTime: Optional[float]
+    allocationTime: Optional[float] = None
     readCounter: int
     writeCounter: int
+    size: int
     
 class EnergyMetric(EnergyAccessMetric):
     pass

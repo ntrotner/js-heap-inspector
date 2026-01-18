@@ -29,6 +29,7 @@ export class EnergyParserService {
             String(nodeMetric.id),
             nodeMetric.load_count,
             nodeMetric.store_count,
+            0,
             nodeMetric.allocation_time_ms,
           ),
         );

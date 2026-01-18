@@ -2,6 +2,8 @@ import argparse
 import json
 import sys
 
+from runtime_analyzer.application.reporter.code_link.code_link_reporter import CodeLinkReporter
+from runtime_analyzer.application.reporter.matching.matching_reporter import MatchingReporter
 from runtime_analyzer.application.services.runtime_causal_link.runtime_causal_link import RuntimeCausalLinkService
 from runtime_analyzer.application.services.runtime_parser.runtime_parser import RuntimeParserService
 from runtime_analyzer.application.services.matching.heuristic_matching_algorithm import HeuristicMatchingAlgorithm
@@ -33,6 +35,7 @@ def main():
     parser.add_argument("--settings", help="Path to the settings JSON file.")
     parser.add_argument("--codeEvolution", help="Path to the code evolution JSON file.")
     parser.add_argument("--output", help="Path to save the comparison result (JSON).")
+    parser.add_argument("--outputReporter", help="Path to save the reporter output (HTML).")
 
     args = parser.parse_args()
 
@@ -80,8 +83,6 @@ def main():
             if parsed_code_evolution.modificationSource == "modified":
                 code_evolutions_modified.append(parsed_code_evolution)
 
-        print(code_evolutions_baseline)
-        print(code_evolutions_modified)
         # Initialize service
         service = RuntimeCausalLinkService(
             differentiation_algorithm=strategy["matching"],
@@ -99,7 +100,6 @@ def main():
             code_evolution_modified=code_evolutions_modified
         )
 
-        # Prepare result
         result = {
             "matching": matching_result.model_dump(),
             "causal_links": code_links.model_dump()
@@ -112,6 +112,17 @@ def main():
             print(f"Results saved to {args.output}")
         else:
             print(json.dumps(result, indent=2))
+            
+        if args.outputReporter:
+            matching_report_html = MatchingReporter(baseline_runtime, modified_runtime).report(matching_result)
+            with open(f'{args.outputReporter}-matching_report.html', 'w') as f:
+                f.write(matching_report_html)
+            print(f"Reporter saved to {args.outputReporter}-matching_report.html")
+
+            code_link_report_html = CodeLinkReporter(baseline_runtime, modified_runtime).report(code_links)
+            with open(f'{args.outputReporter}-code_link_report.html', 'w') as f:
+                f.write(code_link_report_html)
+            print(f"Reporter saved to {args.outputReporter}-code_link_report.html")
 
     except FileNotFoundError as e:
         print(f"Error: File not found: {e.filename}", file=sys.stderr)
