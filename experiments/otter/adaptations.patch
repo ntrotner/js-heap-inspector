@@ -1,0 +1,549 @@
+From 49d5fc8c7020ccbc33c24c6118644a76e206a406 Mon Sep 17 00:00:00 2001
+From: Nikita Trotner <nikita@ttnr.me>
+Date: Sun, 18 Jan 2026 21:30:45 +0100
+Subject: [PATCH] chore: adapt for benchmarking
+
+---
+ apps/showcase/package.json                    |   2 +-
+ apps/showcase/project.json                    |   8 +-
+ .../src/app/localization/i18n/en-GB.json      |  29 +++++
+ .../localization/localization.component.ts    |  81 +++++++++++-
+ .../localization.localization.json            | 110 +++++++++++++++++
+ .../localization/localization.template.html   |  50 ++++----
+ .../localization/localization.translation.ts  | 115 ++++++++++++++++++
+ 7 files changed, 363 insertions(+), 32 deletions(-)
+ create mode 100644 apps/showcase/src/app/localization/i18n/en-GB.json
+ create mode 100644 apps/showcase/src/app/localization/localization.localization.json
+ create mode 100644 apps/showcase/src/app/localization/localization.translation.ts
+
+diff --git a/apps/showcase/package.json b/apps/showcase/package.json
+index ccaef7cf0..acc47e9f6 100644
+--- a/apps/showcase/package.json
++++ b/apps/showcase/package.json
+@@ -7,7 +7,7 @@
+   "scripts": {
+     "ng": "nx",
+     "nx": "nx",
+-    "start": "ng run showcase:run",
++    "start": "ng run showcase:run --configuration production",
+     "build": "yarn run generate:translations && ng build",
+     "watch": "ng compile --watch --configuration development",
+     "test": "ng test",
+diff --git a/apps/showcase/project.json b/apps/showcase/project.json
+index 23a44e4a6..6a1f2c882 100644
+--- a/apps/showcase/project.json
++++ b/apps/showcase/project.json
+@@ -92,11 +92,12 @@
+       },
+       "configurations": {
+         "production": {
++          "optimization": false,
+           "budgets": [
+             {
+               "type": "initial",
+               "maximumWarning": "500kb",
+-              "maximumError": "2.5mb"
++              "maximumError": "50.5mb"
+             },
+             {
+               "type": "anyComponentStyle",
+@@ -104,7 +105,8 @@
+               "maximumError": "4kb"
+             }
+           ],
+-          "outputHashing": "all"
++          "outputHashing": "none",
++          "namedChunks": false
+         },
+         "development": {
+           "optimization": false,
+@@ -148,7 +150,7 @@
+           "buildTarget": "showcase:compile:development"
+         }
+       },
+-      "defaultConfiguration": "development"
++      "defaultConfiguration": "production"
+     },
+     "extract-components": {
+       "executor": "@o3r/components:extractor",
+diff --git a/apps/showcase/src/app/localization/i18n/en-GB.json b/apps/showcase/src/app/localization/i18n/en-GB.json
+new file mode 100644
+index 000000000..815e8c0a7
+--- /dev/null
++++ b/apps/showcase/src/app/localization/i18n/en-GB.json
+@@ -0,0 +1,29 @@
++{
++  "o3r-localization.addLocalizationKeyTitle": "How to add a localization key to a component",
++  "o3r-localization.addLocalizationTitle": "How to add localization to a component",
++  "o3r-localization.bundleAppDescription": "It will create the application bundle for each supported language.",
++  "o3r-localization.bundleAppTitle": "How to generate an application bundle",
++  "o3r-localization.bundleComponentDescription1": "It will create an ",
++  "o3r-localization.bundleComponentDescription2": " folder in the component folder, with an ",
++  "o3r-localization.bundleComponentDescription3": " file containing the mapping between the localization key and the associated default value.",
++  "o3r-localization.bundleComponentTitle": "How to generate a component bundle",
++  "o3r-localization.bundleTitle": "Localization bundle",
++  "o3r-localization.checkOptionsDescription": "Check the list of options available by running:",
++  "o3r-localization.componentGenerationTitle": "How to generate a localized component",
++  "o3r-localization.description": "This module provides a fallback language/translation support and debug tools.",
++  "o3r-localization.descriptionTitle": "Description",
++  "o3r-localization.documentation": "Documentation",
++  "o3r-localization.exampleDestinationDescription": "Selecting a destination will change the language based on the city.",
++  "o3r-localization.exampleIntro": "Let's take our basic component and localize it.",
++  "o3r-localization.exampleTitle": "Example",
++  "o3r-localization.installTitle": "How to install",
++  "o3r-localization.locallyRunDescription": "Do not hesitate to run the application locally, if not installed yet, follow the ",
++  "o3r-localization.locallyRunInstructions": "instructions",
++  "o3r-localization.metadataExtractDescription": "It will extract components' translations and generate the following file: ",
++  "o3r-localization.metadataExtractTitle": "How to extract",
++  "o3r-localization.metadataTitle": "Metadata",
++  "o3r-localization.referencesTitle": "References",
++  "o3r-localization.sourceCode": "Source code",
++  "o3r-localization.title": "Localization",
++  "o3r-localization.welcome": "Welcome!"
++}
+diff --git a/apps/showcase/src/app/localization/localization.component.ts b/apps/showcase/src/app/localization/localization.component.ts
+index d0ba6cbd7..69fa5b638 100644
+--- a/apps/showcase/src/app/localization/localization.component.ts
++++ b/apps/showcase/src/app/localization/localization.component.ts
+@@ -1,8 +1,20 @@
+ import { AsyncPipe } from '@angular/common';
+-import { AfterViewInit, ChangeDetectionStrategy, Component, inject, QueryList, ViewChildren, ViewEncapsulation } from '@angular/core';
++import {
++  AfterViewInit,
++  ChangeDetectionStrategy,
++  Component,
++  inject,
++  Input, OnDestroy, OnInit,
++  QueryList,
++  ViewChildren,
++  ViewEncapsulation
++} from '@angular/core';
+ import { RouterModule } from '@angular/router';
+ import { O3rComponent } from '@o3r/core';
+ import { CopyTextPresComponent, IN_PAGE_NAV_PRES_DIRECTIVES, InPageNavLink, InPageNavLinkDirective, InPageNavPresService, LocalizationPresComponent } from '../../components/index';
++import {Localization, LocalizationModule, LocalizationService} from '@o3r/localization';
++import {LocalizationTranslation, translations} from './localization.translation';
++import {combineLatest, Subscription} from 'rxjs';
+ 
+ @O3rComponent({ componentType: 'Page' })
+ @Component({
+@@ -13,20 +25,83 @@ import { CopyTextPresComponent, IN_PAGE_NAV_PRES_DIRECTIVES, InPageNavLink, InPa
+     LocalizationPresComponent,
+     CopyTextPresComponent,
+     IN_PAGE_NAV_PRES_DIRECTIVES,
+-    AsyncPipe
++    AsyncPipe,
++    LocalizationModule
+   ],
+   templateUrl: './localization.template.html',
+   styleUrls: ['./localization.style.scss'],
+   encapsulation: ViewEncapsulation.None,
+   changeDetection: ChangeDetectionStrategy.OnPush
+ })
+-export class LocalizationComponent implements AfterViewInit {
++export class LocalizationComponent implements AfterViewInit, OnInit, OnDestroy {
+   private readonly inPageNavPresService = inject(InPageNavPresService);
+ 
++  private subscription: Subscription | undefined;
++
++  @Input()
++  @Localization('./localization.localization.json')
++  public translations: LocalizationTranslation = translations;
++
+   @ViewChildren(InPageNavLinkDirective)
+   private readonly inPageNavLinkDirectives!: QueryList<InPageNavLink>;
+   public links$ = this.inPageNavPresService.links$;
+ 
++  constructor(private readonly localizationService: LocalizationService) {}
++
++  public ngOnInit() {
++    this.subscription = combineLatest([
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription),
++      this.localizationService.translate(translations.addLocalizationKeyTitle),
++      this.localizationService.translate(translations.bundleComponentTitle),
++      this.localizationService.translate(translations.bundleComponentDescription2),
++      this.localizationService.translate(translations.exampleTitle),
++      this.localizationService.translate(translations.metadataExtractDescription)
++    ]).subscribe();
++  }
++
++  public ngOnDestroy() {
++    this.subscription?.unsubscribe();
++  }
++
+   public ngAfterViewInit() {
+     this.inPageNavPresService.initialize(this.inPageNavLinkDirectives);
+   }
+diff --git a/apps/showcase/src/app/localization/localization.localization.json b/apps/showcase/src/app/localization/localization.localization.json
+new file mode 100644
+index 000000000..3998e32b1
+--- /dev/null
++++ b/apps/showcase/src/app/localization/localization.localization.json
+@@ -0,0 +1,110 @@
++{
++  "o3r-localization.welcome": {
++    "defaultValue": "Welcome!",
++    "description": "Message in the speech bubble until a destination is selected"
++  },
++  "o3r-localization.title": {
++    "defaultValue": "Localization",
++    "description": "Title of the localization page"
++  },
++  "o3r-localization.descriptionTitle": {
++    "defaultValue": "Description",
++    "description": "Description title"
++  },
++  "o3r-localization.description": {
++    "defaultValue": "This module provides a fallback language/translation support and debug tools.",
++    "description": "Module description"
++  },
++  "o3r-localization.exampleTitle": {
++    "defaultValue": "Example",
++    "description": "Example title"
++  },
++  "o3r-localization.exampleIntro": {
++    "defaultValue": "Let's take our basic component and localize it.",
++    "description": "Example introduction"
++  },
++  "o3r-localization.exampleDestinationDescription": {
++    "defaultValue": "Selecting a destination will change the language based on the city.",
++    "description": "Example destination selection description"
++  },
++  "o3r-localization.locallyRunDescription": {
++    "defaultValue": "Do not hesitate to run the application locally, if not installed yet, follow the ",
++    "description": "Locally run description"
++  },
++  "o3r-localization.locallyRunInstructions": {
++    "defaultValue": "instructions",
++    "description": "Locally run instructions link label"
++  },
++  "o3r-localization.sourceCode": {
++    "defaultValue": "Source code",
++    "description": "Source code link label"
++  },
++  "o3r-localization.installTitle": {
++    "defaultValue": "How to install",
++    "description": "Installation title"
++  },
++  "o3r-localization.componentGenerationTitle": {
++    "defaultValue": "How to generate a localized component",
++    "description": "Component generation title"
++  },
++  "o3r-localization.addLocalizationTitle": {
++    "defaultValue": "How to add localization to a component",
++    "description": "Add localization to component title"
++  },
++  "o3r-localization.addLocalizationKeyTitle": {
++    "defaultValue": "How to add a localization key to a component",
++    "description": "Add localization key to component title"
++  },
++  "o3r-localization.bundleTitle": {
++    "defaultValue": "Localization bundle",
++    "description": "Localization bundle title"
++  },
++  "o3r-localization.bundleComponentTitle": {
++    "defaultValue": "How to generate a component bundle",
++    "description": "Component bundle generation title"
++  },
++  "o3r-localization.bundleComponentDescription1": {
++    "defaultValue": "It will create an ",
++    "description": "Component bundle description part 1"
++  },
++  "o3r-localization.bundleComponentDescription2": {
++    "defaultValue": " folder in the component folder, with an ",
++    "description": "Component bundle description part 2"
++  },
++  "o3r-localization.bundleComponentDescription3": {
++    "defaultValue": " file containing the mapping between the localization key and the associated default value.",
++    "description": "Component bundle description part 3"
++  },
++  "o3r-localization.checkOptionsDescription": {
++    "defaultValue": "Check the list of options available by running:",
++    "description": "Check options description"
++  },
++  "o3r-localization.bundleAppTitle": {
++    "defaultValue": "How to generate an application bundle",
++    "description": "Application bundle generation title"
++  },
++  "o3r-localization.bundleAppDescription": {
++    "defaultValue": "It will create the application bundle for each supported language.",
++    "description": "Application bundle description"
++  },
++  "o3r-localization.metadataTitle": {
++    "defaultValue": "Metadata",
++    "description": "Metadata title"
++  },
++  "o3r-localization.metadataExtractTitle": {
++    "defaultValue": "How to extract",
++    "description": "Metadata extraction title"
++  },
++  "o3r-localization.metadataExtractDescription": {
++    "defaultValue": "It will extract components' translations and generate the following file: ",
++    "description": "Metadata extraction description"
++  },
++  "o3r-localization.referencesTitle": {
++    "defaultValue": "References",
++    "description": "References title"
++  },
++  "o3r-localization.documentation": {
++    "defaultValue": "Documentation",
++    "description": "Documentation link label"
++  }
++}
+diff --git a/apps/showcase/src/app/localization/localization.template.html b/apps/showcase/src/app/localization/localization.template.html
+index e3e35a4e6..4ef887f3a 100644
+--- a/apps/showcase/src/app/localization/localization.template.html
++++ b/apps/showcase/src/app/localization/localization.template.html
+@@ -1,4 +1,4 @@
+-<h1>Localization</h1>
++<h1>{{ translations.title | o3rTranslate }}</h1>
+ <div class="row">
+   <div class="right-nav order-1 order-lg-2 col-12 col-lg-2 sticky-lg-top pt-5 pt-lg-0">
+     <o3r-in-page-nav-pres
+@@ -8,59 +8,59 @@
+     </o3r-in-page-nav-pres>
+   </div>
+   <div class="order-2 order-lg-1 col-12 col-lg-10">
+-    <h2 id="localization-description">Description</h2>
++    <h2 o3rInPageNavLink id="localization-description">{{ translations.descriptionTitle | o3rTranslate }}</h2>
+     <div>
+-      <p>This module provides a fallback language/translation support and debug tools.</p>
++      <p>{{ translations.description | o3rTranslate }}</p>
+     </div>
+ 
+-    <h2 id="localization-example">Example</h2>
++    <h2 o3rInPageNavLink id="localization-example">{{ translations.exampleTitle | o3rTranslate }}</h2>
+     <div>
+       <p>
+-        Let's take our basic component and localize it.
++        {{ translations.exampleIntro | o3rTranslate }}
+       </p>
+       <p>
+-        Selecting a destination will change the language based on the city.
++        {{ translations.exampleDestinationDescription | o3rTranslate }}
+       </p>
+       <o3r-localization-pres></o3r-localization-pres>
+       <p>
+-        Do not hesitate to run the application locally, if not installed yet, follow the <a routerLink="/run-app-locally">instructions</a>.
++        {{ translations.locallyRunDescription | o3rTranslate }}<a routerLink="/run-app-locally">{{ translations.locallyRunInstructions | o3rTranslate }}</a>.
+       </p>
+-      <a href="https://github.com/AmadeusITGroup/otter/blob/main/apps/showcase/src/components/showcase/localization" target="_blank" rel="noopener">Source code</a>
++      <a href="https://github.com/AmadeusITGroup/otter/blob/main/apps/showcase/src/components/showcase/localization" target="_blank" rel="noopener">{{ translations.sourceCode | o3rTranslate }}</a>
+     </div>
+-    <h2 id="localization-install">How to install</h2>
++    <h2 o3rInPageNavLink id="localization-install">{{ translations.installTitle | o3rTranslate }}</h2>
+     <o3r-copy-text-pres [wrap]="true" language="bash" text="ng add @o3r/localization"></o3r-copy-text-pres>
+-    <h2 id="localization-component-generation">How to generate a localized component</h2>
++    <h2 o3rInPageNavLink id="localization-component-generation">{{ translations.componentGenerationTitle | o3rTranslate }}</h2>
+     <o3r-copy-text-pres [wrap]="true" language="bash" text="ng g component ComponentName --use-localization"></o3r-copy-text-pres>
+-    <h2 id="localization-add-loc-later">How to add localization to a component</h2>
++    <h2 o3rInPageNavLink id="localization-add-loc-later">{{ translations.addLocalizationTitle | o3rTranslate }}</h2>
+     <o3r-copy-text-pres [wrap]="true" language="bash" text="ng g localization-to-component --path='path/to/the/component/class/file'"></o3r-copy-text-pres>
+-    <h2 id="localization-add-loc-key-later">How to add a localization key to a component</h2>
++    <h2 o3rInPageNavLink id="localization-add-loc-key-later">{{ translations.addLocalizationKeyTitle | o3rTranslate }}</h2>
+     <o3r-copy-text-pres [wrap]="true" language="bash" text="ng g localization-key-to-component --path='path/to/the/component/class/file' --key='localizationKey' --value='defaultValue'"></o3r-copy-text-pres>
+-    <h2 id="localization-bundle">Localization bundle</h2>
++    <h2 o3rInPageNavLink id="localization-bundle">{{ translations.bundleTitle | o3rTranslate }}</h2>
+     <div>
+-      <h3>How to generate a component bundle</h3>
++      <h3>{{ translations.bundleComponentTitle | o3rTranslate }}</h3>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:i18n"></o3r-copy-text-pres>
+-      <p>It will create an <code>i18n</code> folder in the component folder, with an <code>en-GB.json</code> file containing the mapping between the localization key and the associated default value.</p>
+-      <p>Check the list of options available by running:</p>
++      <p>{{ translations.bundleComponentDescription1 | o3rTranslate }}<code>i18n</code>{{ translations.bundleComponentDescription2 | o3rTranslate }}<code>en-GB.json</code>{{ translations.bundleComponentDescription3 | o3rTranslate }}</p>
++      <p>{{ translations.checkOptionsDescription | o3rTranslate }}</p>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:i18n --help"></o3r-copy-text-pres>
+-      <h3>How to generate an application bundle</h3>
++      <h3>{{ translations.bundleAppTitle | o3rTranslate }}</h3>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:generate-translations"></o3r-copy-text-pres>
+-      <p>It will create the application bundle for each supported language.</p>
+-      <p>Check the list of options available by running:</p>
++      <p>{{ translations.bundleAppDescription | o3rTranslate }}</p>
++      <p>{{ translations.checkOptionsDescription | o3rTranslate }}</p>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:generate-translations --help"></o3r-copy-text-pres>
+     </div>
+-    <h2 id="localization-metadata">Metadata</h2>
++    <h2 o3rInPageNavLink id="localization-metadata">{{ translations.metadataTitle | o3rTranslate }}</h2>
+     <div>
+-      <h3>How to extract</h3>
++      <h3>{{ translations.metadataExtractTitle | o3rTranslate }}</h3>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:extract-translations"></o3r-copy-text-pres>
+-      <p>It will extract components' translations and generate the following file: <code>localisation.metadata.json</code></p>
+-      <p>Check the list of options available by running:</p>
++      <p>{{ translations.metadataExtractDescription | o3rTranslate }}<code>localisation.metadata.json</code></p>
++      <p>{{ translations.checkOptionsDescription | o3rTranslate }}</p>
+       <o3r-copy-text-pres [wrap]="true" language="bash" text="ng run project-name:extract-translations --help"></o3r-copy-text-pres>
+     </div>
+-    <h2 id="localization-references">References</h2>
++    <h2 o3rInPageNavLink id="localization-references">{{ translations.referencesTitle | o3rTranslate }}</h2>
+     <div>
+       <ul>
+         <li>
+-          <a href="https://github.com/AmadeusITGroup/otter/blob/main/packages/%40o3r/localization/README.md" target="_blank" rel="noopener">Documentation</a>
++          <a href="https://github.com/AmadeusITGroup/otter/blob/main/packages/%40o3r/localization/README.md" target="_blank" rel="noopener">{{ translations.documentation | o3rTranslate }}</a>
+         </li>
+       </ul>
+     </div>
+diff --git a/apps/showcase/src/app/localization/localization.translation.ts b/apps/showcase/src/app/localization/localization.translation.ts
+new file mode 100644
+index 000000000..aef8db261
+--- /dev/null
++++ b/apps/showcase/src/app/localization/localization.translation.ts
+@@ -0,0 +1,115 @@
++import type { Translation } from '@o3r/core';
++
++export interface LocalizationTranslation extends Translation {
++  /**
++   * Key for the message in the speech bubble until a destination is selected
++   */
++  welcome: string;
++
++  /** Title of the localization page */
++  title: string;
++
++  /** Description title */
++  descriptionTitle: string;
++
++  /** Module description */
++  description: string;
++
++  /** Example title */
++  exampleTitle: string;
++
++  /** Example introduction */
++  exampleIntro: string;
++
++  /** Example destination selection description */
++  exampleDestinationDescription: string;
++
++  /** Locally run description */
++  locallyRunDescription: string;
++
++  /** Locally run instructions link label */
++  locallyRunInstructions: string;
++
++  /** Source code link label */
++  sourceCode: string;
++
++  /** Installation title */
++  installTitle: string;
++
++  /** Component generation title */
++  componentGenerationTitle: string;
++
++  /** Add localization to component title */
++  addLocalizationTitle: string;
++
++  /** Add localization key to component title */
++  addLocalizationKeyTitle: string;
++
++  /** Localization bundle title */
++  bundleTitle: string;
++
++  /** Component bundle generation title */
++  bundleComponentTitle: string;
++
++  /** Component bundle description part 1 */
++  bundleComponentDescription1: string;
++
++  /** Component bundle description part 2 */
++  bundleComponentDescription2: string;
++
++  /** Component bundle description part 3 */
++  bundleComponentDescription3: string;
++
++  /** Check options description */
++  checkOptionsDescription: string;
++
++  /** Application bundle generation title */
++  bundleAppTitle: string;
++
++  /** Application bundle description */
++  bundleAppDescription: string;
++
++  /** Metadata title */
++  metadataTitle: string;
++
++  /** Metadata extraction title */
++  metadataExtractTitle: string;
++
++  /** Metadata extraction description */
++  metadataExtractDescription: string;
++
++  /** References title */
++  referencesTitle: string;
++
++  /** Documentation link label */
++  documentation: string;
++}
++export const translations: LocalizationTranslation = {
++  welcome: 'o3r-localization.welcome',
++  title: 'o3r-localization.title',
++  descriptionTitle: 'o3r-localization.descriptionTitle',
++  description: 'o3r-localization.description',
++  exampleTitle: 'o3r-localization.exampleTitle',
++  exampleIntro: 'o3r-localization.exampleIntro',
++  exampleDestinationDescription: 'o3r-localization.exampleDestinationDescription',
++  locallyRunDescription: 'o3r-localization.locallyRunDescription',
++  locallyRunInstructions: 'o3r-localization.locallyRunInstructions',
++  sourceCode: 'o3r-localization.sourceCode',
++  installTitle: 'o3r-localization.installTitle',
++  componentGenerationTitle: 'o3r-localization.componentGenerationTitle',
++  addLocalizationTitle: 'o3r-localization.addLocalizationTitle',
++  addLocalizationKeyTitle: 'o3r-localization.addLocalizationKeyTitle',
++  bundleTitle: 'o3r-localization.bundleTitle',
++  bundleComponentTitle: 'o3r-localization.bundleComponentTitle',
++  bundleComponentDescription1: 'o3r-localization.bundleComponentDescription1',
++  bundleComponentDescription2: 'o3r-localization.bundleComponentDescription2',
++  bundleComponentDescription3: 'o3r-localization.bundleComponentDescription3',
++  checkOptionsDescription: 'o3r-localization.checkOptionsDescription',
++  bundleAppTitle: 'o3r-localization.bundleAppTitle',
++  bundleAppDescription: 'o3r-localization.bundleAppDescription',
++  metadataTitle: 'o3r-localization.metadataTitle',
++  metadataExtractTitle: 'o3r-localization.metadataExtractTitle',
++  metadataExtractDescription: 'o3r-localization.metadataExtractDescription',
++  referencesTitle: 'o3r-localization.referencesTitle',
++  documentation: 'o3r-localization.documentation'
++};
+-- 
+2.52.0
+

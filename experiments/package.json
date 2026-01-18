@@ -1,0 +1,12 @@
+{
+  "name": "experiments",
+  "version": "1.0.0",
+  "description": "Experiments repository for thesis",
+  "author": "Nikita Trotner",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^20.0.0",
+    "playwright-performance-reporter": "^2.16.0"
+  }
+}
