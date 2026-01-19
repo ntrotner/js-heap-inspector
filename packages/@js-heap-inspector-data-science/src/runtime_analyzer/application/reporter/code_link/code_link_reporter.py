@@ -113,29 +113,43 @@ class CodeLinkReporter:
         if not pairs:
             return "<p>None found.</p>"
         
-        rows = ""
+        node_count = 0
+        mod_type_count: Dict[str, int] = {}
+        source_count: Dict[str, int] = {}
+        span_count: Dict[str, int] = {}
+        confidence_count: Dict[str, int] = {}
+        
         for p in pairs:
             ce = p.code_evolution
             span = f"L{ce.codeChangeSpan.lineStart}:{ce.codeChangeSpan.columnStart} - L{ce.codeChangeSpan.lineEnd}:{ce.codeChangeSpan.columnEnd}"
-            rows += f"""
-                <tr>
-                    <td>{p.node_id}</td>
-                    <td>{ce.modificationType}</td>
-                    <td>{ce.modificationSource}</td>
-                    <td>{span}</td>
-                    <td>{p.confidence}</td>
-                </tr>
-            """
+            confidence_count[p.confidence] = confidence_count.get(p.confidence, 0) + 1
+            node_count += 1
+            mod_type_count[ce.modificationType] = mod_type_count.get(ce.modificationType, 0) + 1
+            source_count[ce.modificationSource] = source_count.get(ce.modificationSource, 0) + 1
+            span_count[span] = span_count.get(span, 0) + 1
+        
+        rows = ""
+        rows += f"<tr><td>Node</td><td>Count</td><td>{node_count}</td></tr>"
+        
+        for k, v in mod_type_count.items():
+            rows += f"<tr><td>Modification Count</td><td>{k}</td><td>{v}</td></tr>"
+        
+        for k, v in source_count.items():
+            rows += f"<tr><td>Source Count</td><td>{k}</td><td>{v}</td></tr>"
+        
+        for k, v in span_count.items():
+            rows += f"<tr><td>Span Count</td><td>{k}</td><td>{v}</td></tr>"
+
+        for k, v in confidence_count.items():
+            rows += f"<tr><td>Confidence</td><td>{k}</td><td>{v}</td></tr>"
         
         return f"""
         <table>
             <thead>
                 <tr>
-                    <th>Node ID</th>
-                    <th>Mod Type</th>
-                    <th>Source</th>
-                    <th>Span</th>
-                    <th>Confidence</th>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th>Count</th>
                 </tr>
             </thead>
             <tbody>
