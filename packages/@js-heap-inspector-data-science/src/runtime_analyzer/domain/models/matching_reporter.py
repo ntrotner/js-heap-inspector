@@ -2,7 +2,11 @@ from pydantic import BaseModel
 
 
 class MatchingReporterAccessCountResult(BaseModel):
-    read_counter_diff: int
-    write_counter_diff: int
-    read_size_diff: int
-    write_size_diff: int
+    baseline_read_counter: int
+    baseline_write_counter: int
+    baseline_read_size: int
+    baseline_write_size: int
+    modified_read_counter: int
+    modified_write_counter: int
+    modified_read_size: int
+    modified_write_size: int

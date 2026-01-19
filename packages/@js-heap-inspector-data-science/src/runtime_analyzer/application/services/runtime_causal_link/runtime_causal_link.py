@@ -66,9 +66,13 @@ class RuntimeCausalLinkService:
         print(
             f"Executed matching algorithm with following results: \n "
             f"Matched: {differentiation.matched.__len__()}\n "
+            f"    Total Nodes: {sum([len(matched.nodes_baseline_id) + len(matched.nodes_modified_id) for matched in differentiation.matched])}\n"
             f"Modified: {differentiation.modified.__len__()}\n "
+            f"    Total Nodes: {sum([len(modified.nodes_baseline_id) + len(modified.nodes_modified_id) for modified in differentiation.modified])}\n"
             f"Added: {differentiation.added_node_ids.__len__()}\n "
-            f"Removed: {differentiation.removed_node_ids.__len__()}"
+            f"    Total Nodes: {sum([len(added.nodes_baseline_id) + len(added.nodes_modified_id) for added in differentiation.added_node_ids])}\n"
+            f"Removed: {differentiation.removed_node_ids.__len__()}\n"
+            f"    Total Nodes: {sum([len(removed.nodes_baseline_id) + len(removed.nodes_modified_id) for removed in differentiation.removed_node_ids])}\n"
         )
 
         instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified,

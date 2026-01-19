@@ -1,6 +1,7 @@
 from typing import List
 
 from runtime_analyzer.application.helpers import get_nodes_total_energy_difference_for_access_metric
+from runtime_analyzer.application.helpers.energy import get_nodes_energy_for_access_metric
 from runtime_analyzer.domain.models import MatchingResult, MatchSubgraphResult, ModificationSubgraphResult, \
     DeltaSubgraphResult, Runtime, MatchingReporterAccessCountResult
 from runtime_analyzer.domain.models import Node
@@ -27,23 +28,15 @@ class MatchingReporter:
 
         node_count_matched_baseline = sum(len(m.nodes_baseline_id) for m in matching_result.matched)
         node_count_matched_modified = sum(len(m.nodes_modified_id) for m in matching_result.matched)
-        
+
         node_count_modified_baseline = sum(len(m.nodes_baseline_id) for m in matching_result.modified)
         node_count_modified_modified = sum(len(m.nodes_modified_id) for m in matching_result.modified)
-        
+
         node_count_added_baseline = sum(len(m.nodes_baseline_id) for m in matching_result.added_node_ids)
         node_count_added_modified = sum(len(m.nodes_modified_id) for m in matching_result.added_node_ids)
-        
+
         node_count_removed_baseline = sum(len(m.nodes_baseline_id) for m in matching_result.removed_node_ids)
         node_count_removed_modified = sum(len(m.nodes_modified_id) for m in matching_result.removed_node_ids)
-
-        def format_diff(value: int) -> str:
-            if value > 0:
-                return f"<span style='color: red;'>+{value} (Regression)</span>"
-            elif value < 0:
-                return f"<span style='color: green;'>{value} (Improvement)</span>"
-            else:
-                return f"<span>0</span>"
 
         return f"""
         <style>
@@ -63,10 +56,14 @@ class MatchingReporter:
                     <th>Category</th>
                     <th>Nodes (Baseline)</th>
                     <th>Nodes (Modified)</th>
-                    <th>Read Counter Diff</th>
-                    <th>Write Counter Diff</th>
-                    <th>Read Size Diff</th>
-                    <th>Write Size Diff</th>
+                    <th>Read Counter Baseline</th>
+                    <th>Read Counter Modified</th>
+                    <th>Write Counter Baseline</th>
+                    <th>Write Counter Modified</th>
+                    <th>Read Size Baseline</th>
+                    <th>Read Size Modified</th>
+                    <th>Write Size Baseline</th>
+                    <th>Write Size Modified</th>
                 </tr>
             </thead>
             <tbody>
@@ -74,69 +71,99 @@ class MatchingReporter:
                     <td>Matched</td>
                     <td>{node_count_matched_baseline}</td>
                     <td>{node_count_matched_modified}</td>
-                    <td>{format_diff(total_matched.read_counter_diff)}</td>
-                    <td>{format_diff(total_matched.write_counter_diff)}</td>
-                    <td>{format_diff(total_matched.read_size_diff)}</td>
-                    <td>{format_diff(total_matched.write_size_diff)}</td>
+                    <td>{total_matched.baseline_read_counter}</td>
+                    <td>{total_matched.modified_read_counter}</td>
+                    <td>{total_matched.baseline_write_counter}</td>
+                    <td>{total_matched.modified_write_counter}</td>
+                    <td>{total_matched.baseline_read_size}</td>
+                    <td>{total_matched.modified_read_size}</td>
+                    <td>{total_matched.baseline_write_size}</td>
+                    <td>{total_matched.modified_write_size}</td>
                 </tr>
                 <tr>
                     <td>Modified</td>
                     <td>{node_count_modified_baseline}</td>
                     <td>{node_count_modified_modified}</td>
-                    <td>{format_diff(total_modified.read_counter_diff)}</td>
-                    <td>{format_diff(total_modified.write_counter_diff)}</td>
-                    <td>{format_diff(total_modified.read_size_diff)}</td>
-                    <td>{format_diff(total_modified.write_size_diff)}</td>
+                    <td>{total_modified.baseline_read_counter}</td>
+                    <td>{total_modified.modified_read_counter}</td>
+                    <td>{total_modified.baseline_write_counter}</td>
+                    <td>{total_modified.modified_write_counter}</td>
+                    <td>{total_modified.baseline_read_size}</td>
+                    <td>{total_modified.modified_read_size}</td>
+                    <td>{total_modified.baseline_write_size}</td>
+                    <td>{total_modified.modified_write_size}</td>
                 </tr>
                 <tr>
                     <td>Added</td>
                     <td>{node_count_added_baseline}</td>
                     <td>{node_count_added_modified}</td>
-                    <td>{format_diff(total_added.read_counter_diff)}</td>
-                    <td>{format_diff(total_added.write_counter_diff)}</td>
-                    <td>{format_diff(total_added.read_size_diff)}</td>
-                    <td>{format_diff(total_added.write_size_diff)}</td>
+                    <td>{total_added.baseline_read_counter}</td>
+                    <td>{total_added.modified_read_counter}</td>
+                    <td>{total_added.baseline_write_counter}</td>
+                    <td>{total_added.modified_write_counter}</td>
+                    <td>{total_added.baseline_read_size}</td>
+                    <td>{total_added.modified_read_size}</td>
+                    <td>{total_added.baseline_write_size}</td>
+                    <td>{total_added.modified_write_size}</td>
                 </tr>
                 <tr>
                     <td>Removed</td>
                     <td>{node_count_removed_baseline}</td>
                     <td>{node_count_removed_modified}</td>
-                    <td>{format_diff(total_removed.read_counter_diff)}</td>
-                    <td>{format_diff(total_removed.write_counter_diff)}</td>
-                    <td>{format_diff(total_removed.read_size_diff)}</td>
-                    <td>{format_diff(total_removed.write_size_diff)}</td>
+                    <td>{total_removed.baseline_read_counter}</td>
+                    <td>{total_removed.modified_read_counter}</td>
+                    <td>{total_removed.baseline_write_counter}</td>
+                    <td>{total_removed.modified_write_counter}</td>
+                    <td>{total_removed.baseline_read_size}</td>
+                    <td>{total_removed.modified_read_size}</td>
+                    <td>{total_removed.baseline_write_size}</td>
+                    <td>{total_removed.modified_write_size}</td>
                 </tr>
             </tbody>
         </table>
         """
 
-
-    def get_total_access_count(self, access_count_results: dict[
+    def get_total_access_count(self, subgraphs: dict[
         int, MatchingReporterAccessCountResult]) -> MatchingReporterAccessCountResult:
-        total_access_count = MatchingReporterAccessCountResult(
-            read_counter_diff=sum(subgraph.read_counter_diff for subgraph in access_count_results.values()),
-            write_counter_diff=sum(subgraph.write_counter_diff for subgraph in access_count_results.values()),
-            read_size_diff=sum(subgraph.read_size_diff for subgraph in access_count_results.values()),
-            write_size_diff=sum(subgraph.write_size_diff for subgraph in access_count_results.values()),
+        total = MatchingReporterAccessCountResult(
+            baseline_read_counter=0, baseline_write_counter=0, baseline_read_size=0, baseline_write_size=0,
+            modified_read_counter=0, modified_write_counter=0, modified_read_size=0, modified_write_size=0
         )
-
-        return total_access_count
+        
+        for _, subgraph in subgraphs.items():
+            total.baseline_read_counter += subgraph.baseline_read_counter
+            total.baseline_write_counter += subgraph.baseline_write_counter
+            total.baseline_read_size += subgraph.baseline_read_size
+            total.baseline_write_size += subgraph.baseline_write_size
+            total.modified_read_counter += subgraph.modified_read_counter
+            total.modified_write_counter += subgraph.modified_write_counter
+            total.modified_read_size += subgraph.modified_read_size
+            total.modified_write_size += subgraph.modified_write_size
+        
+        return total
 
     def analyze_matched_elements_access_count(self, matched_elements: List[MatchSubgraphResult]) -> dict[
         int, MatchingReporterAccessCountResult]:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, match in enumerate(matched_elements):
-            read_counter_diff, write_counter_diff, read_size_diff, write_size_diff = \
-                get_nodes_total_energy_difference_for_access_metric(
-                    self.get_nodes_from_baseline(match.nodes_baseline_id),
-                    self.get_nodes_from_modified(match.nodes_modified_id))
+            # negative values indicate an improvement
+            (baseline_read_counter, baseline_write_counter, baseline_read_size,
+             baseline_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_baseline(match.nodes_baseline_id))
+            (modified_read_counter, modified_write_counter, modified_read_size,
+             modified_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_modified(match.nodes_modified_id))
 
             subgraphs[index] = MatchingReporterAccessCountResult(
-                read_counter_diff=read_counter_diff,
-                write_counter_diff=write_counter_diff,
-                read_size_diff=read_size_diff,
-                write_size_diff=write_size_diff
+                baseline_read_counter=baseline_read_counter,
+                baseline_write_counter=baseline_write_counter,
+                baseline_read_size=baseline_read_size,
+                baseline_write_size=baseline_write_size,
+                modified_read_counter=modified_read_counter,
+                modified_write_counter=modified_write_counter,
+                modified_read_size=modified_read_size,
+                modified_write_size=modified_write_size
             )
 
         return subgraphs
@@ -146,16 +173,22 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, modification in enumerate(modified_elements):
-            read_counter_diff, write_counter_diff, read_size_diff, write_size_diff = \
-                get_nodes_total_energy_difference_for_access_metric(
-                    self.get_nodes_from_baseline(modification.nodes_baseline_id),
-                    self.get_nodes_from_modified(modification.nodes_modified_id))
+            (baseline_read_counter, baseline_write_counter, baseline_read_size,
+             baseline_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_baseline(modification.nodes_baseline_id))
+            (modified_read_counter, modified_write_counter, modified_read_size,
+             modified_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_modified(modification.nodes_modified_id))
 
             subgraphs[index] = MatchingReporterAccessCountResult(
-                read_counter_diff=read_counter_diff,
-                write_counter_diff=write_counter_diff,
-                read_size_diff=read_size_diff,
-                write_size_diff=write_size_diff
+                baseline_read_counter=baseline_read_counter,
+                baseline_write_counter=baseline_write_counter,
+                baseline_read_size=baseline_read_size,
+                baseline_write_size=baseline_write_size,
+                modified_read_counter=modified_read_counter,
+                modified_write_counter=modified_write_counter,
+                modified_read_size=modified_read_size,
+                modified_write_size=modified_write_size
             )
 
         return subgraphs
@@ -165,16 +198,22 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, addition in enumerate(added_elements):
-            read_counter_diff, write_counter_diff, read_size_diff, write_size_diff = \
-                get_nodes_total_energy_difference_for_access_metric(
-                    self.get_nodes_from_baseline(addition.nodes_baseline_id),
-                    self.get_nodes_from_modified(addition.nodes_modified_id))
+            (baseline_read_counter, baseline_write_counter, baseline_read_size,
+             baseline_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_baseline(addition.nodes_baseline_id))
+            (modified_read_counter, modified_write_counter, modified_read_size,
+             modified_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_modified(addition.nodes_modified_id))
 
             subgraphs[index] = MatchingReporterAccessCountResult(
-                read_counter_diff=read_counter_diff,
-                write_counter_diff=write_counter_diff,
-                read_size_diff=read_size_diff,
-                write_size_diff=write_size_diff
+                baseline_read_counter=baseline_read_counter,
+                baseline_write_counter=baseline_write_counter,
+                baseline_read_size=baseline_read_size,
+                baseline_write_size=baseline_write_size,
+                modified_read_counter=modified_read_counter,
+                modified_write_counter=modified_write_counter,
+                modified_read_size=modified_read_size,
+                modified_write_size=modified_write_size
             )
 
         return subgraphs
@@ -184,16 +223,22 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, removal in enumerate(removed_elements):
-            read_counter_diff, write_counter_diff, read_size_diff, write_size_diff = \
-                get_nodes_total_energy_difference_for_access_metric(
-                    self.get_nodes_from_baseline(removal.nodes_baseline_id),
-                    self.get_nodes_from_modified(removal.nodes_modified_id))
+            (baseline_read_counter, baseline_write_counter, baseline_read_size,
+             baseline_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_baseline(removal.nodes_baseline_id))
+            (modified_read_counter, modified_write_counter, modified_read_size,
+             modified_write_size) = get_nodes_energy_for_access_metric(
+                self.get_nodes_from_modified(removal.nodes_modified_id))
 
             subgraphs[index] = MatchingReporterAccessCountResult(
-                read_counter_diff=read_counter_diff,
-                write_counter_diff=write_counter_diff,
-                read_size_diff=read_size_diff,
-                write_size_diff=write_size_diff
+                baseline_read_counter=baseline_read_counter,
+                baseline_write_counter=baseline_write_counter,
+                baseline_read_size=baseline_read_size,
+                baseline_write_size=baseline_write_size,
+                modified_read_counter=modified_read_counter,
+                modified_write_counter=modified_write_counter,
+                modified_read_size=modified_read_size,
+                modified_write_size=modified_write_size
             )
 
         return subgraphs

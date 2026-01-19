@@ -1,4 +1,6 @@
 from typing import List, Dict
+
+from runtime_analyzer.application.helpers.energy import get_nodes_energy_for_access_metric
 from runtime_analyzer.domain.models import Runtime, CodeLinkContainer, CausalPair
 from runtime_analyzer.application.helpers import get_nodes_total_energy_difference_for_access_metric
 
@@ -67,16 +69,9 @@ class CodeLinkReporter:
             except ValueError:
                 pass
 
-        diff = get_nodes_total_energy_difference_for_access_metric(baseline_nodes, modified_nodes)
+        (baseline_read_counter, baseline_write_counter, baseline_read_size, baseline_write_size) = get_nodes_energy_for_access_metric(baseline_nodes)
+        (modified_read_counter, modified_write_counter, modified_read_size, modified_write_size) = get_nodes_energy_for_access_metric(modified_nodes)
         
-        def format_diff(value: int) -> str:
-            if value > 0:
-                return f"<span class='regression'>+{value}</span>"
-            elif value < 0:
-                return f"<span class='improvement'>{value}</span>"
-            else:
-                return f"<span>0</span>"
-
         report = f"""
         <div class="file-header">
             <h2>File: {file_id}</h2>
@@ -85,6 +80,7 @@ class CodeLinkReporter:
         <table>
             <thead>
                 <tr>
+                    <th>Source</th>
                     <th>Read Counter Diff</th>
                     <th>Write Counter Diff</th>
                     <th>Read Size Diff</th>
@@ -93,10 +89,18 @@ class CodeLinkReporter:
             </thead>
             <tbody>
                 <tr>
-                    <td>{format_diff(diff[0])}</td>
-                    <td>{format_diff(diff[1])}</td>
-                    <td>{format_diff(diff[2])}</td>
-                    <td>{format_diff(diff[3])}</td>
+                    <td>Baseline</td>
+                    <td>{baseline_read_counter}</td>
+                    <td>{baseline_write_counter}</td>
+                    <td>{baseline_read_size}</td>
+                    <td>{baseline_write_size}</td>
+                </tr>
+                <tr>
+                    <td>Modified</td>
+                    <td>{modified_read_counter}</td>
+                    <td>{modified_write_counter}</td>
+                    <td>{modified_read_size}</td>
+                    <td>{modified_write_size}</td>
                 </tr>
             </tbody>
         </table>
