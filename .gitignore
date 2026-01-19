@@ -7,8 +7,8 @@ pnpm-lock.yaml
 dist/
 build/
 *.tsbuildinfo
-packages/@js-heap-inspector-causal-link-cli/data/*.heapsnapshot
-packages/@js-heap-inspector-causal-link-cli/data/*.json
+packages/@js-heap-inspector-causal-link-cli/data/**/*.heapsnapshot
+packages/@js-heap-inspector-causal-link-cli/data/**/*.json
 
 # IDE
 .vscode/
@@ -46,5 +46,5 @@ test-results/
 .cache/
 
 .ipynb_checkpoints
-*/causal-heap-analyzer/data
+*/causal-heap-analyzer/data/**/*.json
 __pycache__

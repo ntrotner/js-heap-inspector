@@ -7,6 +7,8 @@ from runtime_analyzer.application.reporter.matching.matching_reporter import Mat
 from runtime_analyzer.application.services.runtime_causal_link.runtime_causal_link import RuntimeCausalLinkService
 from runtime_analyzer.application.services.runtime_parser.runtime_parser import RuntimeParserService
 from runtime_analyzer.application.services.matching.heuristic_matching_algorithm import HeuristicMatchingAlgorithm
+from runtime_analyzer.application.services.subgraph_creation.community_creation_subgraph_algorithm import \
+    CommunityDetectionSubgraphAlgorithm
 from runtime_analyzer.application.services.subgraph_creation.greedy_k_hop_subgraph_algorithm import \
     GreedyKHopSubgraphAlgorithm
 from runtime_analyzer.application.services.subgraph_creation.primitive_subgraph_algorithm import \
@@ -19,6 +21,11 @@ STRATEGY_MAP = {
     "heuristic-greedy": {
         "matching": HeuristicMatchingAlgorithm,
         "subgraph": GreedyKHopSubgraphAlgorithm,
+        "code_link": DeterministicLinkage
+    },
+    "community-detection": {
+        "matching": HeuristicMatchingAlgorithm,
+        "subgraph": CommunityDetectionSubgraphAlgorithm,
         "code_link": DeterministicLinkage
     },
     "primitive": {

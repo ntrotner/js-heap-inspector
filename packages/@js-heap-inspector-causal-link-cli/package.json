@@ -4,14 +4,20 @@
   "description": "CLI for causal link analysis of V8 heap snapshots",
   "scripts": {
     "build": "tsc",
-    "playwright-performance-reporter-converter": "ts-node ./src/playwright-performance-reporter-converter.ts ./data/base.json --output ./data/base.heapsnapshot && ts-node ./src/playwright-performance-reporter-converter.ts ./data/modified.json --output ./data/modified.heapsnapshot",
+    "playwright-performance-reporter-converter": "ts-node ./src/playwright-performance-reporter-converter.ts ./data/${TARGET_APP}/base.json --output ./data/${TARGET_APP}/base.heapsnapshot && ts-node ./src/playwright-performance-reporter-converter.ts ./data/${TARGET_APP}/modified.json --output ./data/${TARGET_APP}/modified.heapsnapshot",
     "v8:runtime-converter": "ts-node ./src/runtime-converter.ts",
-    "v8:causal-link": "PYTHONPATH=\"$(pwd)/../../packages/@js-heap-inspector-data-science/src\" && python src/causal_link.py --baseline ./data/base.runtime.json --modified ./data/modified.runtime.json --codeEvolution ./data/codeEvolution.json --output ./data/result.json --outputReporter ./data/result-reporter",
+    "v8:causal-link": "PYTHONPATH=\"$(pwd)/../../packages/@js-heap-inspector-data-science/src\" && python src/causal_link.py --baseline ./data/${TARGET_APP}/base.runtime.json --modified ./data/${TARGET_APP}/modified.runtime.json --codeEvolution ./data/${TARGET_APP}/codeEvolution.json --output ./data/${TARGET_APP}/result.json --outputReporter ./data/${TARGET_APP}/result-reporter",
+    "v8:causal-link:community-detection": "yarn run v8:causal-link --settings ./modes/community-detection.json",
     "v8:causal-link:primitive": "yarn run v8:causal-link --settings ./modes/primitive.json",
     "v8:causal-link:heuristic-greedy": "yarn run v8:causal-link --settings ./modes/heuristic-greedy.json",
-    "v8:full-runtime-converter": "yarn run v8:runtime-converter ./data/base.heapsnapshot --output ./data/base.runtime.json && yarn run v8:runtime-converter ./data/modified.heapsnapshot --output ./data/modified.runtime.json",
+    "v8:full-runtime-converter": "yarn run v8:runtime-converter ./data/${TARGET_APP}/base.heapsnapshot --output ./data/${TARGET_APP}/base.runtime.json && yarn run v8:runtime-converter ./data/${TARGET_APP}/modified.heapsnapshot --output ./data/${TARGET_APP}/modified.runtime.json",
     "v8:full-causal-link:primitive": "yarn run v8:full-runtime-converter && yarn run v8:causal-link:primitive",
-    "v8:full-causal-link:heuristic-greedy": "yarn run playwright-performance-reporter-converter && yarn run v8:full-runtime-converter && yarn run v8:causal-link:heuristic-greedy"
+    "v8:full-causal-link:heuristic-greedy": "yarn run playwright-performance-reporter-converter && yarn run v8:full-runtime-converter && yarn run v8:causal-link:heuristic-greedy",
+    "v8:full-causal-link:community-detection": "yarn run playwright-performance-reporter-converter && yarn run v8:full-runtime-converter && yarn run v8:causal-link:community-detection",
+    "v8:full-causal-link:otter:heuristic-greedy": "TARGET_APP=\"otter-heuristic-greedy\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:otter:community-detection": "TARGET_APP=\"otter-community-detection\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:custom-health-app:heuristic-greedy": "TARGET_APP=\"custom-health-app-heuristic-greedy\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:custom-health-app:community-detection": "TARGET_APP=\"custom-health-app-community-detection\" && yarn run v8:full-causal-link:community-detection"
   },
   "dependencies": {
     "@js-heap-inspector/core": "workspace:*",
