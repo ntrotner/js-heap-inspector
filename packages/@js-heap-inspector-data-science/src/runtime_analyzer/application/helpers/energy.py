@@ -43,6 +43,6 @@ def get_nodes_energy_for_access_metric(nodes: list[Node]) -> tuple[int, int, int
         nodes_read_counter += node.energy.readCounter
         nodes_write_counter += node.energy.writeCounter
         nodes_read_size += node.energy.readCounter * node.energy.size
-        nodes_write_size += node.energy.writeCounter * node.energy.size
+        nodes_write_size += node.energy.size + node.energy.writeCounter * node.energy.size
 
     return nodes_read_counter, nodes_write_counter, nodes_read_size, nodes_write_size
