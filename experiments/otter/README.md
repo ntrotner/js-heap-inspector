@@ -17,7 +17,9 @@ yarn install
 yarn run build
 git apply ../adaptations.patch
 
-yarn ng run showcase:run
+yarn ng run showcase:build
+cd apps/showcase/dist
+npx http-server ./ -p 4200 --proxy http://localhost:4200\? --cors --no-dotfiles -g -b
 ```
 
 ## Test Case
