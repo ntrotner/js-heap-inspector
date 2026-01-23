@@ -1,9 +1,8 @@
 {
-  "strategy": "community-detection",
+  "strategy": "heuristic-greedy",
   "parameters": {
     "subgraph": {
-      "resolution": 2.4,
-      "seed": 100
+      "k": 5
     },
     "matching": {
       "similarity_threshold": 0.4,

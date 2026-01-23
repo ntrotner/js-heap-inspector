@@ -1,0 +1,46 @@
+[
+  {
+    "fileId": "http://localhost:4200/chunk-QEUBWBGP.js",
+    "modificationType": "modify",
+    "modificationSource": "base",
+    "codeChangeSpan": {
+      "lineStart": 4583,
+      "lineEnd": 4586,
+      "columnStart": 0,
+      "columnEnd": 1
+    }
+  },
+  {
+    "fileId": "http://localhost:4200/chunk-VO5FH2ZN.js",
+    "modificationType": "modify",
+    "modificationSource": "base",
+    "codeChangeSpan": {
+      "lineStart": 33788,
+      "lineEnd": 33792,
+      "columnStart": 0,
+      "columnEnd": 1
+    }
+  },
+  {
+    "fileId": "http://localhost:4200/chunk-AHTFIUZH.js",
+    "modificationType": "modify",
+    "modificationSource": "modified",
+    "codeChangeSpan": {
+      "lineStart": 4583,
+      "lineEnd": 4586,
+      "columnStart": 0,
+      "columnEnd": 1
+    }
+  },
+  {
+    "fileId": "http://localhost:4200/chunk-OUCAF7IX.js",
+    "modificationType": "modify",
+    "modificationSource": "modified",
+    "codeChangeSpan": {
+      "lineStart": 33788,
+      "lineEnd": 33796,
+      "columnStart": 0,
+      "columnEnd": 1
+    }
+  }
+]

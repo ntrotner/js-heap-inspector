@@ -1,0 +1,18 @@
+{
+  "strategy": "community-detection",
+  "parameters": {
+    "subgraph": {
+      "resolution": 4.1,
+      "seed": 100
+    },
+    "matching": {
+      "similarity_threshold": 0.5,
+      "w_type": 0.5,
+      "w_value": 0.35,
+      "w_topology": 0.1
+    },
+    "code_link": {
+      "max_distance": 12
+    }
+  }
+}
