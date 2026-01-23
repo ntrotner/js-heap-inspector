@@ -4,6 +4,10 @@
   "description": "Experiments repository for thesis",
   "author": "Nikita Trotner",
   "license": "ISC",
+  "scripts": {
+    "otter-showcase-simple": "playwright test ./tests/otter-showcase-simple.spec.ts",
+    "otter-showcase-extensive": "playwright test ./tests/otter-showcase-extensive.spec.ts"
+  },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@types/node": "^20.0.0",
