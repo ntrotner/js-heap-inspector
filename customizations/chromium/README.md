@@ -4,6 +4,7 @@
 
 - Setup chromium for development and build it [Checking out and building Chromium on Linux](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)
 - Initial build can take up to 1-2 days
+- Run `autoninja -C out/Default chrome` for build
 
 ### Patch
 

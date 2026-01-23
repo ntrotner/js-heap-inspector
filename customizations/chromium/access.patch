@@ -1,4 +1,4 @@
-From bbbdff6ea7d63aac37b1b03ec8522383f9d99835 Mon Sep 17 00:00:00 2001
+From bde778f52600ca1c20fbe871ee2032e20ff1a7cc Mon Sep 17 00:00:00 2001
 From: Nikita Trotner <nikita@ttnr.me>
 Date: Sat, 17 Jan 2026 14:07:10 +0100
 Subject: [PATCH] feat: integrate access based tracking
@@ -11,11 +11,16 @@ Subject: [PATCH] feat: integrate access based tracking
  src/heap/factory.cc                     |  12 +-
  src/heap/heap-object-tracker.cc         | 238 ++++++++++++++++++++++++
  src/heap/heap-object-tracker.h          |  70 +++++++
- src/objects/tagged-field-inl.h          |  31 +++
+ src/objects/fixed-array-inl.h           |  33 +++-
+ src/objects/heap-object.h               |  10 +-
+ src/objects/objects-inl.h               | 101 ++++++++++
+ src/objects/string-inl.h                |  20 ++
+ src/objects/tagged-field-inl.h          | 133 ++++++++++++-
+ src/objects/tagged-field.h              |   9 +
  src/profiler/heap-profiler.cc           |  26 ++-
  src/profiler/heap-profiler.h            |  11 ++
  src/profiler/heap-snapshot-generator.cc |   9 +
- 11 files changed, 410 insertions(+), 3 deletions(-)
+ 16 files changed, 667 insertions(+), 21 deletions(-)
  create mode 100644 src/heap/heap-object-tracker.cc
  create mode 100644 src/heap/heap-object-tracker.h
 
@@ -445,8 +450,373 @@ index 00000000..7afc3a99
 +}  // namespace v8
 +
 +#endif  // V8_HEAP_HEAP_OBJECT_TRACKER_H_
+diff --git a/src/objects/fixed-array-inl.h b/src/objects/fixed-array-inl.h
+index da4013a9..3ad99d55 100644
+--- a/src/objects/fixed-array-inl.h
++++ b/src/objects/fixed-array-inl.h
+@@ -17,6 +17,7 @@
+ #include "src/numbers/conversions.h"
+ #include "src/objects/bigint.h"
+ #include "src/objects/compressed-slots.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/objects/hole.h"
+ #include "src/objects/map.h"
+ #include "src/objects/maybe-object-inl.h"
+@@ -125,28 +126,28 @@ Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+ TaggedArrayBase<D, S, P>::get(uint32_t index) const {
+   DCHECK(IsInBounds(index));
+   // TODO(jgruber): This tag-less overload shouldn't be relaxed.
+-  return objects()[index].Relaxed_Load();
++  return objects()[index].Relaxed_Load(this);
+ }
+ 
+ template <class D, class S, class P>
+ Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+ TaggedArrayBase<D, S, P>::get(uint32_t index, RelaxedLoadTag) const {
+   DCHECK(IsInBounds(index));
+-  return objects()[index].Relaxed_Load();
++  return objects()[index].Relaxed_Load(this);
+ }
+ 
+ template <class D, class S, class P>
+ Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+ TaggedArrayBase<D, S, P>::get(uint32_t index, AcquireLoadTag) const {
+   DCHECK(IsInBounds(index));
+-  return objects()[index].Acquire_Load();
++  return objects()[index].Acquire_Load(this);
+ }
+ 
+ template <class D, class S, class P>
+ Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+ TaggedArrayBase<D, S, P>::get(uint32_t index, SeqCstAccessTag) const {
+   DCHECK(IsInBounds(index));
+-  return objects()[index].SeqCst_Load();
++  return objects()[index].SeqCst_Load(this);
+ }
+ 
+ template <class D, class S, class P>
+@@ -614,6 +615,12 @@ Handle<D> PrimitiveArrayBase<D, S, P>::Allocate(
+ 
+ double FixedDoubleArray::get_scalar(uint32_t index) {
+   DCHECK(!is_the_hole(index));
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(this));
++  }
+   return values()[index].value();
+ }
+ 
+@@ -639,6 +646,12 @@ void FixedDoubleArray::set(uint32_t index, double value) {
+   if (std::isnan(value)) {
+     value = std::numeric_limits<double>::quiet_NaN();
+   }
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(this));
++  }
+   values()[index].set_value(value);
+   DCHECK(!is_the_hole(index));
+ }
+@@ -915,12 +928,24 @@ Address FixedIntegerArrayBase<T, Base>::get_element_address(int index) const {
+ template <typename T, typename Base>
+ T FixedIntegerArrayBase<T, Base>::get(int index) const {
+   static_assert(std::is_integral_v<T>);
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(this));
++  }
+   return base::ReadUnalignedValue<T>(get_element_address(index));
+ }
+ 
+ template <typename T, typename Base>
+ void FixedIntegerArrayBase<T, Base>::set(int index, T value) {
+   static_assert(std::is_integral_v<T>);
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(this));
++  }
+   return base::WriteUnalignedValue<T>(get_element_address(index), value);
+ }
+ 
+diff --git a/src/objects/heap-object.h b/src/objects/heap-object.h
+index 5356ca25..8c9e104a 100644
+--- a/src/objects/heap-object.h
++++ b/src/objects/heap-object.h
+@@ -258,18 +258,12 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
+   template <class T>
+   inline T ReadField(size_t offset) const
+     requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
+-             std::is_pointer_v<T>)
+-  {
+-    return ReadMaybeUnalignedValue<T>(field_address(offset));
+-  }
++             std::is_pointer_v<T>);
+ 
+   template <class T>
+   inline void WriteField(size_t offset, T value) const
+     requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
+-             std::is_pointer_v<T>)
+-  {
+-    return WriteMaybeUnalignedValue<T>(field_address(offset), value);
+-  }
++             std::is_pointer_v<T>);
+ 
+   // Atomically reads a field using relaxed memory ordering. Can only be used
+   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
+diff --git a/src/objects/objects-inl.h b/src/objects/objects-inl.h
+index ede516bc..bdca1807 100644
+--- a/src/objects/objects-inl.h
++++ b/src/objects/objects-inl.h
+@@ -33,6 +33,7 @@
+ #include "src/objects/casting.h"
+ #include "src/objects/deoptimization-data.h"
+ #include "src/objects/heap-number-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/objects/heap-object.h"
+ #include "src/objects/hole.h"
+ #include "src/objects/instance-type-checker.h"
+@@ -388,11 +389,45 @@ template <>
+ struct CastTraits<DeoptimizationFrameTranslation>
+     : public CastTraits<TrustedByteArray> {};
+ 
++template <class T>
++T HeapObject::ReadField(size_t offset) const
++  requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
++           std::is_pointer_v<T>)
++{
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
++  return ReadMaybeUnalignedValue<T>(field_address(offset));
++}
++
++template <class T>
++void HeapObject::WriteField(size_t offset, T value) const
++  requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
++           std::is_pointer_v<T>)
++{
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
++  return WriteMaybeUnalignedValue<T>(field_address(offset), value);
++}
++
+ template <class T>
+ T HeapObject::Relaxed_ReadField(size_t offset) const
+   requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+            !std::is_floating_point_v<T>)
+ {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   // Pointer compression causes types larger than kTaggedSize to be
+   // unaligned. Atomic loads must be aligned.
+   DCHECK_IMPLIES(COMPRESS_POINTERS_BOOL, sizeof(T) <= kTaggedSize);
+@@ -406,6 +441,12 @@ void HeapObject::Relaxed_WriteField(size_t offset, T value)
+   requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+            !std::is_floating_point_v<T>)
+ {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   // Pointer compression causes types larger than kTaggedSize to be
+   // unaligned. Atomic stores must be aligned.
+   DCHECK_IMPLIES(COMPRESS_POINTERS_BOOL, sizeof(T) <= kTaggedSize);
+@@ -420,6 +461,12 @@ T HeapObject::Acquire_ReadField(size_t offset) const
+   requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+            !std::is_floating_point_v<T>)
+ {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   // Pointer compression causes types larger than kTaggedSize to be
+   // unaligned. Atomic loads must be aligned.
+   DCHECK_IMPLIES(COMPRESS_POINTERS_BOOL, sizeof(T) <= kTaggedSize);
+@@ -1057,26 +1104,56 @@ MaybeDirectHandle<Object> Object::SetElement(Isolate* isolate,
+ 
+ Address HeapObject::ReadSandboxedPointerField(
+     size_t offset, PtrComprCageBase cage_base) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   return i::ReadSandboxedPointerField(field_address(offset), cage_base);
+ }
+ 
+ void HeapObject::WriteSandboxedPointerField(size_t offset,
+                                             PtrComprCageBase cage_base,
+                                             Address value) {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   i::WriteSandboxedPointerField(field_address(offset), cage_base, value);
+ }
+ 
+ void HeapObject::WriteSandboxedPointerField(size_t offset, Isolate* isolate,
+                                             Address value) {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   i::WriteSandboxedPointerField(field_address(offset),
+                                 PtrComprCageBase(isolate), value);
+ }
+ 
+ size_t HeapObject::ReadBoundedSizeField(size_t offset) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   return i::ReadBoundedSizeField(field_address(offset));
+ }
+ 
+ void HeapObject::WriteBoundedSizeField(size_t offset, size_t value) {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   i::WriteBoundedSizeField(field_address(offset), value);
+ }
+ 
+@@ -1104,12 +1181,24 @@ void HeapObject::InitExternalPointerField(size_t offset,
+ template <ExternalPointerTagRange tag_range>
+ Address HeapObject::ReadExternalPointerField(size_t offset,
+                                              IsolateForSandbox isolate) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   return i::ReadExternalPointerField<tag_range>(field_address(offset), isolate);
+ }
+ 
+ Address HeapObject::ReadExternalPointerField(
+     size_t offset, IsolateForSandbox isolate,
+     ExternalPointerTagRange tag_range) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(*this));
++  }
+   return i::ReadExternalPointerField(field_address(offset), isolate, tag_range);
+ }
+ 
+@@ -1130,6 +1219,12 @@ template <ExternalPointerTag tag>
+ void HeapObject::WriteExternalPointerField(size_t offset,
+                                            IsolateForSandbox isolate,
+                                            Address value) {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   i::WriteExternalPointerField<tag>(field_address(offset), isolate, value);
+ }
+ 
+@@ -1137,6 +1232,12 @@ void HeapObject::WriteExternalPointerField(size_t offset,
+                                            IsolateForSandbox isolate,
+                                            ExternalPointerTag tag,
+                                            Address value) {
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(*this));
++  }
+   i::WriteExternalPointerField(field_address(offset), isolate, tag, value);
+ }
+ 
+diff --git a/src/objects/string-inl.h b/src/objects/string-inl.h
+index 829d6781..c2d38b52 100644
+--- a/src/objects/string-inl.h
++++ b/src/objects/string-inl.h
+@@ -20,6 +20,7 @@
+ #include "src/heap/factory.h"
+ #include "src/heap/heap-layout-inl.h"
+ #include "src/numbers/hash-seed-inl.h"
++#include "src/heap/heap-object-tracker.h"
+ #include "src/objects/heap-object.h"
+ #include "src/objects/instance-type-checker.h"
+ #include "src/objects/instance-type-inl.h"
+@@ -1128,6 +1129,13 @@ uint16_t String::GetImpl(
+     uint32_t index, const SharedStringAccessGuardIfNeeded& access_guard) const {
+   DCHECK(index >= 0 && index < length());
+ 
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(this));
++  }
++
+   return DispatchToSpecificType(
+       [&](auto str) { return str->Get(index, access_guard); });
+ }
+@@ -1299,6 +1307,12 @@ void SeqOneByteString::SeqOneByteStringSet(uint32_t index, uint16_t value) {
+   DCHECK_GE(index, 0);
+   DCHECK_LT(index, length());
+   DCHECK_LE(value, kMaxOneByteCharCode);
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(this));
++  }
+   chars()[index] = value;
+ }
+ 
+@@ -1357,6 +1371,12 @@ uint16_t SeqTwoByteString::Get(
+ void SeqTwoByteString::SeqTwoByteStringSet(uint32_t index, uint16_t value) {
+   DisallowGarbageCollection no_gc;
+   DCHECK(index >= 0 && index < length());
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(this));
++  }
+   chars()[index] = value;
+ }
+ 
 diff --git a/src/objects/tagged-field-inl.h b/src/objects/tagged-field-inl.h
-index 7ff9b9ba..0669b353 100644
+index 7ff9b9ba..b9149e92 100644
 --- a/src/objects/tagged-field-inl.h
 +++ b/src/objects/tagged-field-inl.h
 @@ -12,6 +12,7 @@
@@ -457,7 +827,171 @@ index 7ff9b9ba..0669b353 100644
  #include "src/heap/heap-write-barrier-inl.h"
  #include "src/objects/tagged.h"
  
-@@ -223,6 +224,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(Tagged<HeapObject> host,
+@@ -56,11 +57,30 @@ Tagged<T> TaggedMember<T, CompressionScheme>::load() const {
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-void TaggedMember<T, CompressionScheme>::store(HeapObjectLayout* host,
++inline Tagged<T> TaggedMember<T, CompressionScheme>::load(
++    const HeapObjectLayout* host) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(const_cast<HeapObjectLayout*>(host)));
++  }
++  return load();
++}
++
++template <typename T, typename CompressionScheme>
++inline void TaggedMember<T, CompressionScheme>::store(HeapObjectLayout* host,
+                                                Tagged<T> value,
+                                                WriteBarrierMode mode) {
+   store_no_write_barrier(value);
+   WriteBarrier(host, value, mode);
++
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(host));
++  }
+ }
+ 
+ template <typename T, typename CompressionScheme>
+@@ -70,11 +90,30 @@ Tagged<T> TaggedMember<T, CompressionScheme>::Relaxed_Load() const {
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-void TaggedMember<T, CompressionScheme>::Relaxed_Store(HeapObjectLayout* host,
++inline Tagged<T> TaggedMember<T, CompressionScheme>::Relaxed_Load(
++    const HeapObjectLayout* host) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(const_cast<HeapObjectLayout*>(host)));
++  }
++  return Relaxed_Load();
++}
++
++template <typename T, typename CompressionScheme>
++inline void TaggedMember<T, CompressionScheme>::Relaxed_Store(HeapObjectLayout* host,
+                                                        Tagged<T> value,
+                                                        WriteBarrierMode mode) {
+   Relaxed_Store_no_write_barrier(value);
+   WriteBarrier(host, value, mode);
++
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(host));
++  }
+ }
+ 
+ template <typename T, typename CompressionScheme>
+@@ -84,11 +123,30 @@ Tagged<T> TaggedMember<T, CompressionScheme>::Acquire_Load() const {
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-void TaggedMember<T, CompressionScheme>::Release_Store(HeapObjectLayout* host,
++inline Tagged<T> TaggedMember<T, CompressionScheme>::Acquire_Load(
++    const HeapObjectLayout* host) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(const_cast<HeapObjectLayout*>(host)));
++  }
++  return Acquire_Load();
++}
++
++template <typename T, typename CompressionScheme>
++inline void TaggedMember<T, CompressionScheme>::Release_Store(HeapObjectLayout* host,
+                                                        Tagged<T> value,
+                                                        WriteBarrierMode mode) {
+   Release_Store_no_write_barrier(value);
+   WriteBarrier(host, value, mode);
++
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(host));
++  }
+ }
+ 
+ template <typename T, typename CompressionScheme>
+@@ -98,24 +156,50 @@ Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_Load() const {
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-void TaggedMember<T, CompressionScheme>::SeqCst_Store(HeapObjectLayout* host,
++inline Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_Load(
++    const HeapObjectLayout* host) const {
++  // Track load by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordLoad(
++        Tagged<HeapObject>(const_cast<HeapObjectLayout*>(host)));
++  }
++  return SeqCst_Load();
++}
++
++template <typename T, typename CompressionScheme>
++inline void TaggedMember<T, CompressionScheme>::SeqCst_Store(HeapObjectLayout* host,
+                                                       Tagged<T> value,
+                                                       WriteBarrierMode mode) {
+   SeqCst_Store_no_write_barrier(value);
+   WriteBarrier(host, value, mode);
++
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(host));
++  }
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_Swap(
++inline Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_Swap(
+     HeapObjectLayout* host, Tagged<T> value, WriteBarrierMode mode) {
+   Tagged<T> old_value(tagged_to_full(AsAtomicTagged::SeqCst_Swap(
+       this->ptr_location(), full_to_tagged(value.ptr()))));
+   WriteBarrier(host, value, mode);
++
++  // Track store by node ID
++  if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                  Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++    Isolate::Current()->heap_object_tracker()->RecordStore(
++        Tagged<HeapObject>(host));
++  }
+   return old_value;
+ }
+ 
+ template <typename T, typename CompressionScheme>
+-Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_CompareAndSwap(
++inline Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_CompareAndSwap(
+     HeapObjectLayout* host, Tagged<T> expected_value, Tagged<T> value,
+     WriteBarrierMode mode) {
+   Tagged<T> old_value(tagged_to_full(AsAtomicTagged::SeqCst_CompareAndSwap(
+@@ -123,6 +207,13 @@ Tagged<T> TaggedMember<T, CompressionScheme>::SeqCst_CompareAndSwap(
+       full_to_tagged(value.ptr()))));
+   if (old_value == expected_value) {
+     WriteBarrier(host, value, mode);
++
++    // Track store by node ID
++    if (V8_UNLIKELY(Isolate::Current()->heap_object_tracker() &&
++                    Isolate::Current()->heap_object_tracker()->IsProfiling())) {
++      Isolate::Current()->heap_object_tracker()->RecordStore(
++          Tagged<HeapObject>(host));
++    }
+   }
+   return old_value;
+ }
+@@ -223,6 +314,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(Tagged<HeapObject> host,
                                                        int offset) {
    Tagged_t value = *location(host, offset);
    DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
@@ -472,7 +1006,7 @@ index 7ff9b9ba..0669b353 100644
    return PtrType(tagged_to_full(host.ptr(), value));
  }
  
-@@ -233,6 +242,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(
+@@ -233,6 +332,14 @@ TaggedField<T, kFieldOffset, CompressionScheme>::load(
      PtrComprCageBase cage_base, Tagged<HeapObject> host, int offset) {
    Tagged_t value = *location(host, offset);
    DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
@@ -487,7 +1021,7 @@ index 7ff9b9ba..0669b353 100644
    return PtrType(tagged_to_full(cage_base, value));
  }
  
-@@ -247,6 +264,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
+@@ -247,6 +354,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
    DCHECK_NE(kFieldOffset, HeapObject::kMapOffset);
    *location(host) = full_to_tagged(ptr);
  #endif
@@ -501,7 +1035,7 @@ index 7ff9b9ba..0669b353 100644
  }
  
  // static
-@@ -260,6 +284,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
+@@ -260,6 +374,13 @@ void TaggedField<T, kFieldOffset, CompressionScheme>::store(
    DCHECK_NE(kFieldOffset + offset, HeapObject::kMapOffset);
    *location(host, offset) = full_to_tagged(ptr);
  #endif
@@ -515,6 +1049,48 @@ index 7ff9b9ba..0669b353 100644
  }
  
  // static
+diff --git a/src/objects/tagged-field.h b/src/objects/tagged-field.h
+index 4b7722c5..2e87ea30 100644
+--- a/src/objects/tagged-field.h
++++ b/src/objects/tagged-field.h
+@@ -21,6 +21,11 @@ namespace v8::internal {
+ template <typename T, typename CompressionScheme = V8HeapCompressionScheme>
+ class TaggedMember;
+ 
++template <typename T>
++class Tagged;
++
++class HeapObjectLayout;
++
+ template <typename T>
+ using ProtectedTaggedMember = TaggedMember<T, TrustedSpaceCompressionScheme>;
+ 
+@@ -35,21 +40,25 @@ class TaggedMember : public TaggedMemberBase {
+   constexpr TaggedMember() = default;
+ 
+   inline Tagged<T> load() const;
++  inline Tagged<T> load(const HeapObjectLayout* host) const;
+   inline void store(HeapObjectLayout* host, Tagged<T> value,
+                     WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void store_no_write_barrier(Tagged<T> value);
+ 
+   inline Tagged<T> Relaxed_Load() const;
++  inline Tagged<T> Relaxed_Load(const HeapObjectLayout* host) const;
+   inline void Relaxed_Store(HeapObjectLayout* host, Tagged<T> value,
+                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void Relaxed_Store_no_write_barrier(Tagged<T> value);
+ 
+   inline Tagged<T> Acquire_Load() const;
++  inline Tagged<T> Acquire_Load(const HeapObjectLayout* host) const;
+   inline void Release_Store(HeapObjectLayout* host, Tagged<T> value,
+                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void Release_Store_no_write_barrier(Tagged<T> value);
+ 
+   inline Tagged<T> SeqCst_Load() const;
++  inline Tagged<T> SeqCst_Load(const HeapObjectLayout* host) const;
+   inline void SeqCst_Store(HeapObjectLayout* host, Tagged<T> value,
+                            WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+   inline void SeqCst_Store_no_write_barrier(Tagged<T> value);
 diff --git a/src/profiler/heap-profiler.cc b/src/profiler/heap-profiler.cc
 index c123645e..e0cb50d3 100644
 --- a/src/profiler/heap-profiler.cc
