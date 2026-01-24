@@ -14,11 +14,11 @@ git clone git@github.com:AmadeusITGroup/otter.git
 cd otter
 git checkout 59e202965e59d2793e190e29d3a9bc15060075ea
 yarn install
-yarn run build
 git apply ../adaptations.patch
+yarn run build
 
 yarn ng run showcase:build
-cd apps/showcase/dist
+cd apps/showcase/dist/browser
 npx http-server ./ -p 4200 --proxy http://localhost:4200\? --cors --no-dotfiles -g -b
 ```
 
@@ -28,6 +28,8 @@ For gathering baseline:
 ```shell
 cd ../..
 npx playwright test ./tests/otter.spec.ts
+yarn run otter-showcase-simple
+yarn run otter-showcase-extensive
 ```
 
 
@@ -36,9 +38,11 @@ For gathering modified:
 cd otter/otter
 git cherry-pick 376a06d837bfce7584d7b981801d94787b0a5fce
 yarn run build
+yarn ng run showcase:build
 
 cd ../..
-npx playwright test ./tests/otter.spec.ts
+yarn run otter-showcase-simple
+yarn run otter-showcase-extensive
 ```
 
 ## Benchmark Results
