@@ -48,6 +48,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         # 1. Analyze Added Nodes (Regressions)
         # Input: S_delta (added) and S_modified
         unmapped_regression_nodes: List[str] = []
+        unmapped_improvement_nodes: List[str] = []
 
         # Collect all modified/added node IDs from the Modified Runtime
         target_mod_ids = []
@@ -67,17 +68,25 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             else:
                 unmapped_regression_nodes.append(node.id)
 
-        # 2. Analyze Removed Nodes (Improvements)
-        # Input: S_delta (removed) from Baseline Runtime
-        for res in self.matching_result.removed_node_ids:
-            for node_id in res.nodes_baseline_id:
-                node = self.bl_node_map.get(node_id)
-                if not node:
-                    continue
 
-                link = self._sl_verify(node, self.context_improvement, self.bl_stack_map)
-                if link:
-                    improvements.append(CausalPair(node_id=node.id, code_evolution=link, confidence='Direct'))
+        target_bl_ids = []
+        for res in self.matching_result.removed_node_ids:
+            target_bl_ids.extend(res.nodes_baseline_id)
+        for res in self.matching_result.modified:
+            target_bl_ids.extend(res.nodes_baseline_id)
+        
+        # 2. Analyze modified and removed nodes from Baseline Runtime (Improvements)
+        # Input: S_modified and S_baseline
+        for node_id in target_bl_ids:
+            node = self.bl_node_map.get(node_id)
+            if not node:
+                continue
+                
+            link = self._sl_verify(node, self.context_regression, self.bl_stack_map)
+            if link:
+                improvements.append(CausalPair(node_id=node.id, code_evolution=link, confidence='Direct'))
+            else:
+                unmapped_improvement_nodes.append(node.id)
 
         # --- Phase 2: Derived Linkage (Retainer Search)  ---
 
@@ -87,6 +96,11 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             derived_link = self._find_causal_retainer(node_id, regressions)
             if derived_link:
                 regressions.append(CausalPair(node_id=node_id, code_evolution=derived_link, confidence='Derived'))
+
+        for node_in in unmapped_improvement_nodes:
+            derived_link = self._find_causal_retainer(node_in, improvements)
+            if derived_link:
+                improvements.append(CausalPair(node_id=node_in, code_evolution=derived_link, confidence='Derived'))
 
         return CodeLinkContainer(regressions=regressions, improvements=improvements)
 
