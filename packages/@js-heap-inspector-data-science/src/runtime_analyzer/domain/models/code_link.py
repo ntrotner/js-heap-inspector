@@ -12,3 +12,5 @@ class CodeLinkContainer(BaseModel):
     """Output container for the linkage analysis."""
     regressions: List[CausalPair]
     improvements: List[CausalPair]
+    unmappable_regressions: List[str]
+    unmappable_improvements: List[str]

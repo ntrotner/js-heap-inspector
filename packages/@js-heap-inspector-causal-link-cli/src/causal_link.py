@@ -100,7 +100,7 @@ def main():
             code_link_params=strategy_params.get("code_link")
         )
 
-        matching_result, code_links = service.compare(
+        matching_result, code_links, time_tracking = service.compare(
             baseline=baseline_runtime,
             code_evolution_baseline=code_evolutions_baseline,
             modified=modified_runtime,
@@ -108,6 +108,7 @@ def main():
         )
 
         result = {
+            "time_tracking": time_tracking,
             "matching": matching_result.model_dump(),
             "causal_links": code_links.model_dump()
         }

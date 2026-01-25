@@ -1,3 +1,5 @@
+import time
+
 from ....domain.models import Runtime, MatchingResult, CodeLinkContainer, CodeEvolution
 from ..matching.contracts.differentiation_algorithm import MatchingAlgorithm
 from ..subgraph_creation.contracts.subgraph_algorithm import SubgraphAlgorithm
@@ -37,7 +39,7 @@ class RuntimeCausalLinkService:
         self.code_link_params = code_link_params or {}
 
     def compare(self, baseline: Runtime, code_evolution_baseline: list[CodeEvolution], modified: Runtime,
-                code_evolution_modified: list[CodeEvolution]) -> tuple[MatchingResult, CodeLinkContainer]:
+                code_evolution_modified: list[CodeEvolution]) -> tuple[MatchingResult, CodeLinkContainer, dict]:
         """
         Executes the differentiation process between baseline and modified runtimes.
         
@@ -50,13 +52,17 @@ class RuntimeCausalLinkService:
         Returns:
             A tuple containing a MatchingResult object and a CodeLink object.
         """
+        time_tracking = {}
 
+        time_tracking["subgraph_generation_start"] = time.time()
         subgraphs_baseline = self.subgraph_algorithm.generate(baseline)
         print(f"Generated subgraphs for baseline with length {subgraphs_baseline.__len__()}")
 
         subgraphs_modified = self.subgraph_algorithm.generate(modified)
         print(f"Generated subgraphs for modified with length {subgraphs_modified.__len__()}")
+        time_tracking["subgraph_generation_end"] = time.time()
 
+        time_tracking["differentiation_algorithm_start"] = time.time()
         instantiated_differentiation_algorithm = self.differentiation_algorithm(baseline,
                                                                                 subgraphs_baseline,
                                                                                 modified,
@@ -74,7 +80,9 @@ class RuntimeCausalLinkService:
             f"Removed: {differentiation.removed_node_ids.__len__()}\n"
             f"    Total Nodes: {sum([len(removed.nodes_baseline_id) + len(removed.nodes_modified_id) for removed in differentiation.removed_node_ids])}\n"
         )
+        time_tracking["differentiation_algorithm_end"] = time.time()
 
+        time_tracking["code_link_algorithm_start"] = time.time()
         instantiated_code_link = self.code_link_algorithm(differentiation, baseline, code_evolution_baseline, modified,
                                                           code_evolution_modified, **self.code_link_params)
         links = instantiated_code_link.link()
@@ -82,6 +90,9 @@ class RuntimeCausalLinkService:
             "Executed code link algorithm with following results: \n"
             f"Regressions: {links.regressions.__len__()}\n"
             f"Improvements: {links.improvements.__len__()}\n"
+            f"Unmappable Regressions: {links.unmappable_regressions.__len__()}\n"
+            f"Unmappable Improvements: {links.unmappable_improvements.__len__()}\n"
         )
+        time_tracking["code_link_algorithm_end"] = time.time()
 
-        return differentiation, links
+        return differentiation, links, time_tracking

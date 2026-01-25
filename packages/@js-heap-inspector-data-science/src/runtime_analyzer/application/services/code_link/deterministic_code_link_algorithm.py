@@ -42,9 +42,11 @@ class DeterministicLinkage(CodeLinkAlgorithm):
     def link(self) -> CodeLinkContainer:
         regressions: List[CausalPair] = []
         improvements: List[CausalPair] = []
+        unmappable_regressions: List[str] = []
+        unmappable_improvements: List[str] = []
 
         # --- Phase 1: Direct Linkage ---
-
+        print("Starting Phase 1: Direct Linkage")
         # 1. Analyze Added Nodes (Regressions)
         # Input: S_delta (added) and S_modified
         unmapped_regression_nodes: List[str] = []
@@ -57,7 +59,9 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         for res in self.matching_result.modified:
             target_mod_ids.extend(res.nodes_modified_id)
 
-        for node_id in target_mod_ids:
+        for index, node_id in enumerate(target_mod_ids):
+            if index % 50 == 0:
+                print(f"Direct Linkage Modified/Added from Modified Phase 1 Status: {(index/len(target_mod_ids))*100:.2f}%")
             node = self.mod_node_map.get(node_id)
             if not node:
                 continue
@@ -77,7 +81,9 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         
         # 2. Analyze modified and removed nodes from Baseline Runtime (Improvements)
         # Input: S_modified and S_baseline
-        for node_id in target_bl_ids:
+        for index, node_id in enumerate(target_bl_ids):
+            if index % 50 == 0:
+                print(f"Direct Linkage Modified/Removed from Baseline Phase 1 Status: {(index/len(target_bl_ids))*100:.2f}%")
             node = self.bl_node_map.get(node_id)
             if not node:
                 continue
@@ -89,20 +95,29 @@ class DeterministicLinkage(CodeLinkAlgorithm):
                 unmapped_improvement_nodes.append(node.id)
 
         # --- Phase 2: Derived Linkage (Retainer Search)  ---
+        print("Starting Phase 2: Derived Linkage")
 
         # Only applied to regressions (Modified Runtime) where Direct Link failed.
         # Search Zone 1 & 2 for causal retainers.
-        for node_id in unmapped_regression_nodes:
+        for index, node_id in enumerate(unmapped_regression_nodes):
+            if index % 50 == 0:
+                print(f"Derived Linkage for Modified Phase 2 Status: {(index/len(unmapped_regression_nodes))*100:.2f}%")
             derived_link = self._find_causal_retainer(node_id, regressions)
             if derived_link:
                 regressions.append(CausalPair(node_id=node_id, code_evolution=derived_link, confidence='Derived'))
+            else:
+                unmappable_regressions.append(node_id)
 
-        for node_in in unmapped_improvement_nodes:
+        for index, node_in in enumerate(unmapped_improvement_nodes):
+            if index % 50 == 0:
+                print(f"Derived Linkage for Baseline Phase 2 Status: {(index/len(unmapped_improvement_nodes))*100:.2f}%")
             derived_link = self._find_causal_retainer(node_in, improvements)
             if derived_link:
                 improvements.append(CausalPair(node_id=node_in, code_evolution=derived_link, confidence='Derived'))
+            else:
+                unmappable_improvements.append(node_in)
 
-        return CodeLinkContainer(regressions=regressions, improvements=improvements)
+        return CodeLinkContainer(regressions=regressions, improvements=improvements, unmappable_regressions=unmappable_regressions, unmappable_improvements=unmappable_improvements)
 
     def _sl_verify(self, node: Node, code_changes: List[CodeEvolution], stack_map: Dict[str, Stack]) -> Optional[
         CodeEvolution]:
@@ -151,14 +166,11 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         Logic: (f.Lsrc == mu.id_file) AND (f.Pcode in mu.CS).
         """
         # 1. Check File Match
-        # Note: In production, rigorous path normalization/fuzzy matching is needed here.
         if change.fileId not in frame.scriptName:
             return False
 
         # 2. Check Coordinate Span
-        # Simple bounding box check for lines
-        if (frame.lineNumber >= change.codeChangeSpan.lineStart and
-                frame.lineNumber <= change.codeChangeSpan.lineEnd):
+        if change.codeChangeSpan.lineStart <= frame.lineNumber <= change.codeChangeSpan.lineEnd:
             return True
 
         return False
