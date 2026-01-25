@@ -1,0 +1,17 @@
+{
+  "strategy": "heuristic-greedy",
+  "parameters": {
+    "subgraph": {
+      "k": 5
+    },
+    "matching": {
+      "similarity_threshold": 0.4,
+      "w_type": 0.5,
+      "w_value": 0.35,
+      "w_topology": 0.1
+    },
+    "code_link": {
+      "max_distance": 10
+    }
+  }
+}

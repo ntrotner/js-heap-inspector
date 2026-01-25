@@ -20,12 +20,20 @@
     "v8:full-causal-link:otter-simple-showcase:community-detection-2": "TARGET_APP=\"otter-simple-showcase-community-detection-2\" && yarn run v8:full-causal-link:community-detection",
     "v8:full-causal-link:otter-simple-showcase:heuristic-greedy-3": "TARGET_APP=\"otter-simple-showcase-heuristic-greedy-3\" && yarn run v8:full-causal-link:heuristic-greedy",
     "v8:full-causal-link:otter-simple-showcase:community-detection-3": "TARGET_APP=\"otter-simple-showcase-community-detection-3\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:otter-simple-showcase:heuristic-greedy-4": "TARGET_APP=\"otter-simple-showcase-heuristic-greedy-4\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:otter-simple-showcase:community-detection-4": "TARGET_APP=\"otter-simple-showcase-community-detection-4\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:otter-simple-showcase:heuristic-greedy-5": "TARGET_APP=\"otter-simple-showcase-heuristic-greedy-5\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:otter-simple-showcase:community-detection-5": "TARGET_APP=\"otter-simple-showcase-community-detection-5\" && yarn run v8:full-causal-link:community-detection",
     "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-1": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-1\" && yarn run v8:full-causal-link:heuristic-greedy",
     "v8:full-causal-link:otter-extensive-showcase:community-detection-1": "TARGET_APP=\"otter-extensive-showcase-community-detection-1\" && yarn run v8:full-causal-link:community-detection",
     "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-2": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-2\" && yarn run v8:full-causal-link:heuristic-greedy",
     "v8:full-causal-link:otter-extensive-showcase:community-detection-2": "TARGET_APP=\"otter-extensive-showcase-community-detection-2\" && yarn run v8:full-causal-link:community-detection",
     "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-3": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-3\" && yarn run v8:full-causal-link:heuristic-greedy",
-    "v8:full-causal-link:otter-extensive-showcase:community-detection-3": "TARGET_APP=\"otter-extensive-showcase-community-detection-3\" && yarn run v8:full-causal-link:community-detection"
+    "v8:full-causal-link:otter-extensive-showcase:community-detection-3": "TARGET_APP=\"otter-extensive-showcase-community-detection-3\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-4": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-4\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:otter-extensive-showcase:community-detection-4": "TARGET_APP=\"otter-extensive-showcase-community-detection-4\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-5": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-5\" && yarn run v8:full-causal-link:heuristic-greedy",
+    "v8:full-causal-link:otter-extensive-showcase:community-detection-5": "TARGET_APP=\"otter-extensive-showcase-community-detection-5\" && yarn run v8:full-causal-link:community-detection"
   },
   "dependencies": {
     "@js-heap-inspector/core": "workspace:*",
