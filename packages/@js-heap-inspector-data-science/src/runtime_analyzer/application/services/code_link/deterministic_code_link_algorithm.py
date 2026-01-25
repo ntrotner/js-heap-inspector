@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional
+from collections import deque
 from .contracts.code_link_algorithm import CodeLinkAlgorithm
 from ....domain.models import Stack, Node, Edge, CodeEvolution, CodeLinkContainer, CausalPair
 
@@ -30,6 +31,11 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             if c.modificationSource == 'base'
         ]
 
+        # Optimization Caches
+        self._frame_match_cache = {}  # (id(code_changes), sid) -> CodeEvolution
+        self._trace_result_cache = {}  # (id(code_changes), trace_id) -> CodeEvolution
+        self._grouped_changes_cache = {} # id(code_changes) -> List[Tuple[fileId, List[CodeEvolution]]]
+
     def _build_reverse_edges(self, edges: List[Edge]) -> Dict[str, List[str]]:
         """Maps toNodeId -> list of fromNodeIds."""
         rev = {}
@@ -60,7 +66,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             target_mod_ids.extend(res.nodes_modified_id)
 
         for index, node_id in enumerate(target_mod_ids):
-            if index % 50 == 0:
+            if index % 500 == 0:
                 print(f"Direct Linkage Modified/Added from Modified Phase 1 Status: {(index/len(target_mod_ids))*100:.2f}%")
             node = self.mod_node_map.get(node_id)
             if not node:
@@ -82,7 +88,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         # 2. Analyze modified and removed nodes from Baseline Runtime (Improvements)
         # Input: S_modified and S_baseline
         for index, node_id in enumerate(target_bl_ids):
-            if index % 50 == 0:
+            if index % 500 == 0:
                 print(f"Direct Linkage Modified/Removed from Baseline Phase 1 Status: {(index/len(target_bl_ids))*100:.2f}%")
             node = self.bl_node_map.get(node_id)
             if not node:
@@ -97,23 +103,29 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         # --- Phase 2: Derived Linkage (Retainer Search)  ---
         print("Starting Phase 2: Derived Linkage")
 
+        # Build initial link maps for Phase 2 for O(1) lookups
+        regression_link_map = {pair.node_id: pair.code_evolution for pair in regressions}
+        improvement_link_map = {pair.node_id: pair.code_evolution for pair in improvements}
+
         # Only applied to regressions (Modified Runtime) where Direct Link failed.
         # Search Zone 1 & 2 for causal retainers.
         for index, node_id in enumerate(unmapped_regression_nodes):
-            if index % 50 == 0:
+            if index % 500 == 0:
                 print(f"Derived Linkage for Modified Phase 2 Status: {(index/len(unmapped_regression_nodes))*100:.2f}%")
-            derived_link = self._find_causal_retainer(node_id, regressions)
+            derived_link = self._find_causal_retainer(node_id, regression_link_map)
             if derived_link:
                 regressions.append(CausalPair(node_id=node_id, code_evolution=derived_link, confidence='Derived'))
+                regression_link_map[node_id] = derived_link
             else:
                 unmappable_regressions.append(node_id)
 
         for index, node_in in enumerate(unmapped_improvement_nodes):
-            if index % 50 == 0:
+            if index % 500 == 0:
                 print(f"Derived Linkage for Baseline Phase 2 Status: {(index/len(unmapped_improvement_nodes))*100:.2f}%")
-            derived_link = self._find_causal_retainer(node_in, improvements)
+            derived_link = self._find_causal_retainer(node_in, improvement_link_map)
             if derived_link:
                 improvements.append(CausalPair(node_id=node_in, code_evolution=derived_link, confidence='Derived'))
+                improvement_link_map[node_in] = derived_link
             else:
                 unmappable_improvements.append(node_in)
 
@@ -128,66 +140,88 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         if not node.traceId:
             return None
 
+        # Optimization: Check if we have already processed this traceId for these code_changes and stack_map
+        cache_key = (id(code_changes), id(stack_map), node.traceId)
+        if cache_key in self._trace_result_cache:
+            return self._trace_result_cache[cache_key]
+
         # Start with the allocation site
         current_stack_id = node.traceId
+        trace_stack = deque([current_stack_id])
+        visited = {current_stack_id}
 
-        # Traverse the stack trace (conceptually S = f0...fn)
-        # We process a queue of stack IDs if the model allows walking parents via frameIds
-        # Assuming frameIds contains the IDs of frames in the call chain.
-
-        trace_stack = [current_stack_id]
-
-        # If the Stack object is a container for frames, we expand it. 
-        # If it is a frame itself with parent pointers, we traverse.
-        # Based on typical V8 models: trace_node_id points to a node in the stack tree.
-
+        result = None
         while trace_stack:
-            sid = trace_stack.pop(0)
+            sid = trace_stack.popleft()
+
+            # Check intersection for this frame (using cache)
+            match = self._get_frame_match(sid, code_changes, stack_map)
+            if match:
+                result = match
+                break
+
             stack_frame = stack_map.get(sid)
             if not stack_frame:
                 continue
 
-            # Check intersection
-            for change in code_changes:
-                if self._check_intersection(stack_frame, change):
-                    return change
-
             # Propagate up the stack (Assuming frameIds are parent/callers)
-            # If frameIds is empty, we stop (root).
             for parent_id in stack_frame.frameIds:
-                if parent_id in stack_map:
+                if parent_id in stack_map and parent_id not in visited:
+                    visited.add(parent_id)
                     trace_stack.append(parent_id)
 
-        return None
+        self._trace_result_cache[cache_key] = result
+        return result
 
-    def _check_intersection(self, frame: Stack, change: CodeEvolution) -> bool:
-        """
-        Verifies if stack frame location falls within the CodeEvolution span.
-        Logic: (f.Lsrc == mu.id_file) AND (f.Pcode in mu.CS).
-        """
-        # 1. Check File Match
-        if change.fileId not in frame.scriptName:
-            return False
+    def _get_frame_match(self, sid: str, code_changes: List[CodeEvolution], stack_map: Dict[str, Stack]) -> Optional[CodeEvolution]:
+        """Checks if a single stack frame matches any code change, with caching and file-based pre-filtering."""
+        cache_key = (id(code_changes), id(stack_map), sid)
+        if cache_key in self._frame_match_cache:
+            return self._frame_match_cache[cache_key]
 
-        # 2. Check Coordinate Span
-        if change.codeChangeSpan.lineStart <= frame.lineNumber <= change.codeChangeSpan.lineEnd:
-            return True
+        frame = stack_map.get(sid)
+        if not frame:
+            self._frame_match_cache[cache_key] = None
+            return None
 
-        return False
+        # Build grouped changes for this list if not already cached
+        if id(code_changes) not in self._grouped_changes_cache:
+            file_to_changes = {}
+            file_order = []
+            for c in code_changes:
+                if c.fileId not in file_to_changes:
+                    file_to_changes[c.fileId] = []
+                    file_order.append(c.fileId)
+                file_to_changes[c.fileId].append(c)
+            self._grouped_changes_cache[id(code_changes)] = [(fid, file_to_changes[fid]) for fid in file_order]
 
-    def _find_causal_retainer(self, node_id: str, established_links: List[CausalPair]) -> Optional[CodeEvolution]:
+        grouped = self._grouped_changes_cache[id(code_changes)]
+
+        match = None
+        for fileId, changes in grouped:
+            if fileId in frame.scriptName:
+                for change in changes:
+                    if change.codeChangeSpan.lineStart <= frame.lineNumber <= change.codeChangeSpan.lineEnd:
+                        match = change
+                        break
+            if match:
+                break
+
+        self._frame_match_cache[cache_key] = match
+        return match
+
+    def _find_causal_retainer(self, node_id: str, link_map: Dict[str, CodeEvolution]) -> Optional[CodeEvolution]:
         """
         Phase 2: Traverses graph topology to find a retainer linked to a code change.
         Search Space: Zone 1 (Intra-Subgraph) + Zone 2 (Neighborhood).
+        Optimized with deque and pre-built link_map.
         """
-        link_map = {pair.node_id: pair.code_evolution for pair in established_links}
-
         # BFS Queue: (current_node_id, distance)
-        queue = [(node_id, 0)]
+        queue = deque([(node_id, 0)])
         visited = {node_id}
 
         while queue:
-            curr, dist = queue.pop(0)
+            curr, dist = queue.popleft()
 
             # If this retainer is already causally linked, inherit the cause
             if curr in link_map:
