@@ -94,7 +94,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             if not node:
                 continue
                 
-            link = self._sl_verify(node, self.context_regression, self.bl_stack_map)
+            link = self._sl_verify(node, self.context_improvement, self.bl_stack_map)
             if link:
                 improvements.append(CausalPair(node_id=node.id, code_evolution=link, confidence='Direct'))
             else:
