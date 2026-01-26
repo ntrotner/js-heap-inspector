@@ -2,7 +2,7 @@
   "strategy": "community-detection",
   "parameters": {
     "subgraph": {
-      "resolution": 3.7,
+      "resolution": 3.8,
       "seed": 100
     },
     "matching": {
@@ -12,7 +12,7 @@
       "w_topology": 0.1
     },
     "code_link": {
-      "max_distance": 5
+      "max_distance": 8
     }
   }
 }
