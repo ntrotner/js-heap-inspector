@@ -6,7 +6,9 @@
   "license": "ISC",
   "scripts": {
     "otter-showcase-simple": "playwright test ./tests/otter-showcase-simple.spec.ts",
-    "otter-showcase-extensive": "playwright test ./tests/otter-showcase-extensive.spec.ts"
+    "otter-showcase-extensive": "playwright test ./tests/otter-showcase-extensive.spec.ts",
+    "otter-run-simple-10-times": "yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple && yarn run otter-showcase-simple",
+    "otter-run-extensive-10-times": "yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive && yarn run otter-showcase-extensive"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
