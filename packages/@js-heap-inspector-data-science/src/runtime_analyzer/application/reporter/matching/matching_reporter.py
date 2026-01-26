@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Dict, Any
+
 
 from runtime_analyzer.application.helpers import get_nodes_total_energy_difference_for_access_metric
 from runtime_analyzer.application.helpers.energy import get_nodes_energy_for_access_metric
@@ -38,16 +39,46 @@ class MatchingReporter:
         node_count_removed_baseline = sum(len(m.nodes_baseline_id) for m in matching_result.removed_node_ids)
         node_count_removed_modified = sum(len(m.nodes_modified_id) for m in matching_result.removed_node_ids)
 
+        matched_node_ids_baseline = [node_id for m in matching_result.matched for node_id in m.nodes_baseline_id]
+        matched_node_ids_modified = [node_id for m in matching_result.matched for node_id in m.nodes_modified_id]
+        modified_node_ids_baseline = [node_id for m in matching_result.modified for node_id in m.nodes_baseline_id]
+        modified_node_ids_modified = [node_id for m in matching_result.modified for node_id in m.nodes_modified_id]
+        added_node_ids_baseline = [node_id for m in matching_result.added_node_ids for node_id in m.nodes_baseline_id]
+        added_node_ids_modified = [node_id for m in matching_result.added_node_ids for node_id in m.nodes_modified_id]
+        removed_node_ids_baseline = [node_id for m in matching_result.removed_node_ids for node_id in m.nodes_baseline_id]
+        removed_node_ids_modified = [node_id for m in matching_result.removed_node_ids for node_id in m.nodes_modified_id]
+
+        matched_analytics_html = self._present_node_analytics_as_html(
+            "Matched Elements Analytics",
+            self._get_node_analytics(matched_node_ids_baseline, self.baseline_runtime),
+            self._get_node_analytics(matched_node_ids_modified, self.modified_runtime)
+        )
+        modified_analytics_html = self._present_node_analytics_as_html(
+            "Modified Elements Analytics",
+            self._get_node_analytics(modified_node_ids_baseline, self.baseline_runtime),
+            self._get_node_analytics(modified_node_ids_modified, self.modified_runtime)
+        )
+        added_analytics_html = self._present_node_analytics_as_html(
+            "Added Elements Analytics",
+            self._get_node_analytics(added_node_ids_baseline, self.baseline_runtime),
+            self._get_node_analytics(added_node_ids_modified, self.modified_runtime)
+        )
+        removed_analytics_html = self._present_node_analytics_as_html(
+            "Removed Elements Analytics",
+            self._get_node_analytics(removed_node_ids_baseline, self.baseline_runtime),
+            self._get_node_analytics(removed_node_ids_modified, self.modified_runtime)
+        )
+
         return f"""
         <style>
-            table {{ border-collapse: collapse; width: 100%; font-family: sans-serif; }}
+            table {{ border-collapse: collapse; width: 100%; font-family: sans-serif; margin-bottom: 20px; }}
             th, td {{ border: 1px solid #ddd; padding: 8px; text-align: right; }}
             th {{ background-color: #f2f2f2; text-align: center; }}
             td:first-child {{ text-align: left; font-weight: bold; }}
             .improvement {{ color: green; }}
             .regression {{ color: red; }}
             .neutral {{ color: #666; }}
-            h1 {{ font-family: sans-serif; }}
+            h1, h2 {{ font-family: sans-serif; }}
         </style>
         <h1>Access Count Analysis Overview</h1>
         <table>
@@ -121,6 +152,60 @@ class MatchingReporter:
                 </tr>
             </tbody>
         </table>
+
+        {matched_analytics_html}
+        {modified_analytics_html}
+        {added_analytics_html}
+        {removed_analytics_html}
+        """
+
+    def _get_node_analytics(self, node_ids: List[str], runtime: Runtime) -> Dict[str, Dict[str, Any]]:
+        analytics = {}
+        for node_id in node_ids:
+            node = runtime.get_node_by_id(node_id)
+            if node.type not in analytics:
+                analytics[node.type] = {"count": 0, "total_size": 0}
+            analytics[node.type]["count"] += 1
+            if node.energy:
+                analytics[node.type]["total_size"] += node.energy.size
+        return analytics
+
+    def _present_node_analytics_as_html(self, title: str, baseline_analytics: Dict[str, Dict[str, Any]],
+                                       modified_analytics: Dict[str, Dict[str, Any]]) -> str:
+        all_types = sorted(set(baseline_analytics.keys()) | set(modified_analytics.keys()))
+        if not all_types:
+            return ""
+
+        rows = ""
+        for node_type in all_types:
+            baseline = baseline_analytics.get(node_type, {"count": 0, "total_size": 0})
+            modified = modified_analytics.get(node_type, {"count": 0, "total_size": 0})
+            rows += f"""
+                <tr>
+                    <td>{node_type}</td>
+                    <td>{baseline["count"]}</td>
+                    <td>{modified["count"]}</td>
+                    <td>{baseline["total_size"]}</td>
+                    <td>{modified["total_size"]}</td>
+                </tr>
+            """
+
+        return f"""
+            <h2>{title}</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Node Type</th>
+                        <th>Count (Baseline)</th>
+                        <th>Count (Modified)</th>
+                        <th>Total Size (Baseline)</th>
+                        <th>Total Size (Modified)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows}
+                </tbody>
+            </table>
         """
 
     def get_total_access_count(self, subgraphs: dict[
@@ -148,12 +233,13 @@ class MatchingReporter:
 
         for index, match in enumerate(matched_elements):
             # negative values indicate an improvement
+            baseline_nodes = self.get_nodes_from_baseline(match.nodes_baseline_id)
             (baseline_read_counter, baseline_write_counter, baseline_read_size,
-             baseline_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_baseline(match.nodes_baseline_id))
+             baseline_write_size) = get_nodes_energy_for_access_metric(baseline_nodes)
+
+            modified_nodes = self.get_nodes_from_modified(match.nodes_modified_id)
             (modified_read_counter, modified_write_counter, modified_read_size,
-             modified_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_modified(match.nodes_modified_id))
+             modified_write_size) = get_nodes_energy_for_access_metric(modified_nodes)
 
             subgraphs[index] = MatchingReporterAccessCountResult(
                 baseline_read_counter=baseline_read_counter,
@@ -173,12 +259,13 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, modification in enumerate(modified_elements):
+            baseline_nodes = self.get_nodes_from_baseline(modification.nodes_baseline_id)
             (baseline_read_counter, baseline_write_counter, baseline_read_size,
-             baseline_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_baseline(modification.nodes_baseline_id))
+             baseline_write_size) = get_nodes_energy_for_access_metric(baseline_nodes)
+
+            modified_nodes = self.get_nodes_from_modified(modification.nodes_modified_id)
             (modified_read_counter, modified_write_counter, modified_read_size,
-             modified_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_modified(modification.nodes_modified_id))
+             modified_write_size) = get_nodes_energy_for_access_metric(modified_nodes)
 
             subgraphs[index] = MatchingReporterAccessCountResult(
                 baseline_read_counter=baseline_read_counter,
@@ -198,12 +285,13 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, addition in enumerate(added_elements):
+            baseline_nodes = self.get_nodes_from_baseline(addition.nodes_baseline_id)
             (baseline_read_counter, baseline_write_counter, baseline_read_size,
-             baseline_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_baseline(addition.nodes_baseline_id))
+             baseline_write_size) = get_nodes_energy_for_access_metric(baseline_nodes)
+
+            modified_nodes = self.get_nodes_from_modified(addition.nodes_modified_id)
             (modified_read_counter, modified_write_counter, modified_read_size,
-             modified_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_modified(addition.nodes_modified_id))
+             modified_write_size) = get_nodes_energy_for_access_metric(modified_nodes)
 
             subgraphs[index] = MatchingReporterAccessCountResult(
                 baseline_read_counter=baseline_read_counter,
@@ -223,12 +311,13 @@ class MatchingReporter:
         subgraphs: dict[int, MatchingReporterAccessCountResult] = {}
 
         for index, removal in enumerate(removed_elements):
+            baseline_nodes = self.get_nodes_from_baseline(removal.nodes_baseline_id)
             (baseline_read_counter, baseline_write_counter, baseline_read_size,
-             baseline_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_baseline(removal.nodes_baseline_id))
+             baseline_write_size) = get_nodes_energy_for_access_metric(baseline_nodes)
+
+            modified_nodes = self.get_nodes_from_modified(removal.nodes_modified_id)
             (modified_read_counter, modified_write_counter, modified_read_size,
-             modified_write_size) = get_nodes_energy_for_access_metric(
-                self.get_nodes_from_modified(removal.nodes_modified_id))
+             modified_write_size) = get_nodes_energy_for_access_metric(modified_nodes)
 
             subgraphs[index] = MatchingReporterAccessCountResult(
                 baseline_read_counter=baseline_read_counter,
