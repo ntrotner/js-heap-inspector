@@ -144,11 +144,11 @@ class CodeLinkReporter:
 
             ce = p.code_evolution
             span = f"L{ce.codeChangeSpan.lineStart}:{ce.codeChangeSpan.columnStart} - L{ce.codeChangeSpan.lineEnd}:{ce.codeChangeSpan.columnEnd}"
-            cause.node_count += 1
-            cause.node_type[node.type] = cause.node_type.get(node.type, 0) + 1
-            cause.mod_type_count[ce.modificationType] = cause.mod_type_count.get(ce.modificationType, 0) + 1
-            cause.source_count[ce.modificationSource] = cause.source_count.get(ce.modificationSource, 0) + 1
-            cause.span_count[span] = cause.span_count.get(span, 0) + 1
+            cause["node_count"] += 1
+            cause["node_type"][node.type] = cause["node_type"].get(node.type, 0) + 1
+            cause["mod_type_count"][ce.modificationType] = cause["mod_type_count"].get(ce.modificationType, 0) + 1
+            cause["source_count"][ce.modificationSource] = cause["source_count"].get(ce.modificationSource, 0) + 1
+            cause["span_count"][span] = cause["span_count"].get(span, 0) + 1
 
         rows = {
             "Direct": [],
@@ -157,22 +157,20 @@ class CodeLinkReporter:
 
         for causeKey in causes.keys():
             cause = causes[causeKey]
-            rows[causeKey].append(f"<tr><td>Node</td><td>Count</td><td>{cause.node_count}</td></tr>")
+            rows[causeKey].append(f"<tr><td>Node</td><td>Count</td><td>{cause["node_count"]}</td></tr>")
 
-            for k, v in cause.node_type.items():
+            for k, v in cause["node_type"].items():
                 rows[causeKey].append(f"<tr><td>Node Type</td><td>{k}</td><td>{v}</td></tr>")
 
-            for k, v in cause.mod_type_count.items():
+            for k, v in cause["mod_type_count"].items():
                 rows[causeKey].append(f"<tr><td>Modification Count</td><td>{k}</td><td>{v}</td></tr>")
 
-            for k, v in cause.source_count.items():
+            for k, v in cause["source_count"].items():
                 rows[causeKey].append(f"<tr><td>Source Count</td><td>{k}</td><td>{v}</td></tr>")
 
-            for k, v in cause.span_count.items():
+            for k, v in cause["span_count"].items():
                 rows[causeKey].append(f"<tr><td>Span Count</td><td>{k}</td><td>{v}</td></tr>")
 
-            for k, v in cause.confidence_count.items():
-                rows[causeKey].append(f"<tr><td>Confidence</td><td>{k}</td><td>{v}</td></tr>")
 
         rows_html_direct = "".join(rows["Direct"])
         rows_html_derived = "".join(rows["Derived"])
