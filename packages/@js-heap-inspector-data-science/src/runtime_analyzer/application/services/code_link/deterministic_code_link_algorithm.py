@@ -113,7 +113,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         for index, node_id in enumerate(unmapped_regression_nodes):
             if index % 500 == 0:
                 print(f"Derived Linkage for Modified Phase 2 Status: {(index/len(unmapped_regression_nodes))*100:.2f}%")
-            derived_link = self._find_causal_retainer(node_id, regression_link_map, self.mod_reverse_edges)
+            derived_link = self._find_causal_retainer(self.mod_node_map, self.context_regression, self.mod_stack_map, node_id, regression_link_map, self.mod_reverse_edges)
             if derived_link:
                 regressions.append(CausalPair(node_id=node_id, code_evolution=derived_link, confidence='Derived'))
                 regression_link_map[node_id] = derived_link
@@ -123,7 +123,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         for index, node_in in enumerate(unmapped_improvement_nodes):
             if index % 500 == 0:
                 print(f"Derived Linkage for Baseline Phase 2 Status: {(index/len(unmapped_improvement_nodes))*100:.2f}%")
-            derived_link = self._find_causal_retainer(node_in, improvement_link_map, self.bl_reverse_edges)
+            derived_link = self._find_causal_retainer(self.bl_node_map, self.context_improvement, self.bl_stack_map, node_in, improvement_link_map, self.bl_reverse_edges)
             if derived_link:
                 improvements.append(CausalPair(node_id=node_in, code_evolution=derived_link, confidence='Derived'))
                 improvement_link_map[node_in] = derived_link
@@ -211,7 +211,7 @@ class DeterministicLinkage(CodeLinkAlgorithm):
         self._frame_match_cache[cache_key] = match
         return match
 
-    def _find_causal_retainer(self, node_id: str, link_map: Dict[str, CodeEvolution], reverse_edges: Dict[str, List[str]]) -> Optional[CodeEvolution]:
+    def _find_causal_retainer(self, node_map: Dict[str, Node], code_changes: list[CodeEvolution], stack_map: dict[str, Stack], node_id: str, link_map: Dict[str, CodeEvolution], reverse_edges: Dict[str, List[str]]) -> Optional[CodeEvolution]:
         """
         Phase 2: Traverses graph topology to find a retainer linked to a code change.
         Search Space: Zone 1 (Intra-Subgraph) + Zone 2 (Neighborhood).
@@ -227,6 +227,12 @@ class DeterministicLinkage(CodeLinkAlgorithm):
             # If this retainer is already causally linked, inherit the cause
             if curr in link_map:
                 return link_map[curr]
+
+            # If the retainer is not linked, check the stack trace of that retainer if it matches with any of the changes
+            link = self._sl_verify(node_map.get(curr), code_changes, stack_map)
+            if link:
+                link_map[curr] = link
+                return link
 
             if dist >= self.max_distance:
                 continue
