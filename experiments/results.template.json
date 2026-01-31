@@ -1,0 +1,221 @@
+{
+  "input": {
+    "strategy": "",
+    "parameters": {
+    },
+    "code_link": {
+      "distance": 0
+    },
+    "baseline": {
+      "nodes": 0,
+      "edges": 0,
+      "stacks": 0,
+      "energy": 0
+    },
+    "modified": {
+      "nodes": 0,
+      "edges": 0,
+      "stacks": 0,
+      "energy": 0
+    }
+  },
+  "output": {
+    "time_tracking": {
+      "subgraph_generation_start": 0,
+      "subgraph_generation_end": 0,
+      "differentiation_algorithm_start": 0,
+      "differentiation_algorithm_end": 0,
+      "code_link_algorithm_start": 0,
+      "code_link_algorithm_end": 0
+    },
+    "subgraph": {
+      "baseline": 0,
+      "modified": 0
+    },
+    "baseline": {
+      "matched": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "modified": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "added": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "removed": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      }
+    },
+    "modified": {
+      "matched": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "modified": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "added": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "removed": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      }
+    },
+    "code_link": {
+      "unmapped_regressions": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "unmapped_improvements": {
+        "nodes": 0,
+        "read_counter": 0,
+        "write_counter": 0,
+        "read_size": 0,
+        "write_size": 0,
+        "node_types": [
+          {
+            "type": "",
+            "count": 0,
+            "size": 0
+          }
+        ]
+      },
+      "files": {
+        "file_name.js": {
+          "baseline": {
+            "direct": {
+              "nodes": 0,
+              "read_counter": 0,
+              "write_counter": 0,
+              "read_size": 0,
+              "write_size": 0,
+              "node_types": [
+                {
+                  "type": "",
+                  "count": 0,
+                  "size": 0
+                }
+              ]
+            },
+            "derived": {
+              "distances": [
+                {
+                  "distance": 0,
+                  "nodes": 0,
+                  "read_counter": 0,
+                  "write_counter": 0,
+                  "read_size": 0,
+                  "write_size": 0,
+                  "node_types": [
+                    {
+                      "type": "",
+                      "count": 0,
+                      "size": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
