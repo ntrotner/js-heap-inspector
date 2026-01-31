@@ -33,7 +33,12 @@
     "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-4": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-4\" && yarn run v8:full-causal-link:heuristic-greedy",
     "v8:full-causal-link:otter-extensive-showcase:community-detection-4": "TARGET_APP=\"otter-extensive-showcase-community-detection-4\" && yarn run v8:full-causal-link:community-detection",
     "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-5": "TARGET_APP=\"otter-extensive-showcase-heuristic-greedy-5\" && yarn run v8:full-causal-link:heuristic-greedy",
-    "v8:full-causal-link:otter-extensive-showcase:community-detection-5": "TARGET_APP=\"otter-extensive-showcase-community-detection-5\" && yarn run v8:full-causal-link:community-detection"
+    "v8:full-causal-link:otter-extensive-showcase:community-detection-5": "TARGET_APP=\"otter-extensive-showcase-community-detection-5\" && yarn run v8:full-causal-link:community-detection",
+    "v8:full-causal-link:otter-extensive-showcase:community-detection:all": "bash -lc 'for i in 1 2 3 4 5; do yarn run v8:full-causal-link:otter-extensive-showcase:community-detection-$i; done'",
+    "v8:full-causal-link:otter-extensive-showcase:heuristic-greedy:all": "bash -lc 'for i in 1 2 3 4 5; do yarn run v8:full-causal-link:otter-extensive-showcase:heuristic-greedy-$i; done'",
+    "v8:full-causal-link:otter-simple-showcase:community-detection:all": "bash -lc 'for i in 1 2 3 4 5; do yarn run v8:full-causal-link:otter-simple-showcase:community-detection-$i; done'",
+    "v8:full-causal-link:otter-simple-showcase:heuristic-greedy:all": "bash -lc 'for i in 1 2 3 4 5; do yarn run v8:full-causal-link:otter-simple-showcase:heuristic-greedy-$i; done'",
+    "v8:full-causal-link:otter-showcase:all": "yarn run v8:full-causal-link:otter-extensive-showcase:community-detection:all; yarn run v8:full-causal-link:otter-extensive-showcase:heuristic-greedy:all; yarn run v8:full-causal-link:otter-simple-showcase:community-detection:all; yarn run v8:full-causal-link:otter-simple-showcase:heuristic-greedy:all"
   },
   "dependencies": {
     "@js-heap-inspector/core": "workspace:*",
