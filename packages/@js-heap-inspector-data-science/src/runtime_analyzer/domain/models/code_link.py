@@ -6,7 +6,7 @@ class CausalPair(BaseModel):
     """Represents a link between a memory node and a code change."""
     node_id: str
     code_evolution: CodeEvolution
-    confidence: str # 'Direct' or 'Derived'
+    confidence: int # distance of link
 
 class CodeLinkContainer(BaseModel):
     """Output container for the linkage analysis."""

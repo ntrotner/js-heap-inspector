@@ -13,3 +13,7 @@ class CodeEvolution(BaseModel):
     modificationType: Literal['insert', 'delete', 'modify']
     modificationSource: Literal['base', 'modified']
     codeChangeSpan: CodeChangeSpan
+
+class CodeLinkDistanceAware(BaseModel):
+    link: CodeEvolution
+    distance: int
