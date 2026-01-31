@@ -29,13 +29,10 @@ class GreedyKHopSubgraphAlgorithm(SubgraphAlgorithm):
         global_visited: Set[str] = set()
 
         # 2. Deterministic Order
-        # It is crucial to process nodes in a deterministic order so the 
-        # partitions are reproducible (RS3 - Result Quality & Practicality).
-        # We prioritize 'Roots' or high-degree nodes if possible, or just ID.
+        # It is crucial to process nodes in a deterministic order so the partitions are reproducible.
         sorted_nodes = sorted(runtime.nodes, key=lambda n: n.id)
 
         for start_node in sorted_nodes:
-            # OPTIMIZATION: If node is already part of a cluster, skip it.
             if start_node.id in global_visited:
                 continue
 
