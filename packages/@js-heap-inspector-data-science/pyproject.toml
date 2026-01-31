@@ -10,6 +10,10 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "pydantic>=2.0.0",
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "pandas",
 ]
 
 [project.optional-dependencies]
