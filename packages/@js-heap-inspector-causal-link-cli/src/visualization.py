@@ -1,4 +1,6 @@
 import argparse
+from visualizer.application.services.resolution_distance_types.resolution_distance_types import \
+    ResolutionDistanceTypes
 from visualizer.application.services.resolution_file_size_heatmap.resolution_file_size_heatmap import \
     ResolutionFileSizeHeatmap
 from visualizer.application.services.resolution_matching_count.resolution_matching_count import ResolutionMatchingCount
@@ -72,6 +74,8 @@ def run_visualisation_for_otter():
                 heatmap_generator.generate_per_file(output_dir, 'size')
                 heatmap_generator.generate_per_file(output_dir, 'counter')
         
+                ResolutionDistanceTypes(thesis_presenter_reader).generate_per_file(output_dir)
+
                 ResolutionSubgraph(thesis_presenter_reader).generate(output_dir)
 
                 ResolutionSubgraphTime(thesis_presenter_reader).generate(output_filepath=f"{output_dir}/subgraph_time.png")

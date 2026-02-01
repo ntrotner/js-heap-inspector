@@ -66,7 +66,7 @@ class ResolutionMatchingSize:
         df = df.sort_values("resolution")
 
         # Plotting
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12), sharex=True)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
         categories = ["matched", "modified", "added", "removed"]
         colors = ['blue', 'orange', 'green', 'red']
@@ -76,12 +76,12 @@ class ResolutionMatchingSize:
         ax1.plot(df["resolution"], df["in_mod_read"], 'k--', label="Input Modified Read", alpha=0.4, linewidth=3)
         
         for cat, color in zip(categories, colors):
-            ax1.plot(df["resolution"], df[f"out_bl_{cat}_read"], marker='o', linestyle='-', color=color, label=f"Out BL {cat.capitalize()} Read", markersize=10, linewidth=2, alpha=0.7)
-            ax1.plot(df["resolution"], df[f"out_mod_{cat}_read"], marker='x', linestyle='--', color=color, label=f"Out Mod {cat.capitalize()} Read", markersize=12, linewidth=2, alpha=0.7, markeredgewidth=2)
+            ax1.plot(df["resolution"], df[f"out_bl_{cat}_read"], marker='o', linestyle='-', color=color, label=f"Baseline {cat.capitalize()} Read", markersize=10, linewidth=2, alpha=0.7)
+            ax1.plot(df["resolution"], df[f"out_mod_{cat}_read"], marker='x', linestyle='--', color=color, label=f"Modified {cat.capitalize()} Read", markersize=12, linewidth=2, alpha=0.7, markeredgewidth=2)
             
         ax1.set_ylabel("Read Size (GB)", fontsize=18)
-        ax1.set_title(f"{x_label} vs Read Sizes", fontsize=22)
-        ax1.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=16)
+        ax1.set_title(f"", fontsize=22)
+        ax1.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=12)
         ax1.grid(True, which="both", ls="-", alpha=0.2)
         ax1.tick_params(axis='both', which='major', labelsize=14)
 
@@ -90,13 +90,12 @@ class ResolutionMatchingSize:
         ax2.plot(df["resolution"], df["in_mod_write"], 'k--', label="Input Modified Write", alpha=0.4, linewidth=3)
         
         for cat, color in zip(categories, colors):
-            ax2.plot(df["resolution"], df[f"out_bl_{cat}_write"], marker='o', linestyle='-', color=color, label=f"Out BL {cat.capitalize()} Write", markersize=10, linewidth=2, alpha=0.7)
-            ax2.plot(df["resolution"], df[f"out_mod_{cat}_write"], marker='x', linestyle='--', color=color, label=f"Out Mod {cat.capitalize()} Write", markersize=12, linewidth=2, alpha=0.7, markeredgewidth=2)
+            ax2.plot(df["resolution"], df[f"out_bl_{cat}_write"], marker='o', linestyle='-', color=color, label=f"Baseline {cat.capitalize()} Write", markersize=10, linewidth=2, alpha=0.7)
+            ax2.plot(df["resolution"], df[f"out_mod_{cat}_write"], marker='x', linestyle='--', color=color, label=f"Modified {cat.capitalize()} Write", markersize=12, linewidth=2, alpha=0.7, markeredgewidth=2)
             
         ax2.set_xlabel(x_label, fontsize=18)
         ax2.set_ylabel("Write Size (GB)", fontsize=18)
-        ax2.set_title(f"{x_label} vs Write Sizes", fontsize=22)
-        ax2.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=16)
+        ax2.set_title(f"", fontsize=22)
         ax2.grid(True, which="both", ls="-", alpha=0.2)
         ax2.tick_params(axis='both', which='major', labelsize=14)
 
@@ -107,6 +106,6 @@ class ResolutionMatchingSize:
              os.makedirs(output_filepath, exist_ok=True)
 
         save_path = f"{output_filepath}/resolution_matching_size.png"
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.savefig(save_path, dpi=400, bbox_inches="tight")
         plt.close()
         print(f"Diagram saved to {save_path}")

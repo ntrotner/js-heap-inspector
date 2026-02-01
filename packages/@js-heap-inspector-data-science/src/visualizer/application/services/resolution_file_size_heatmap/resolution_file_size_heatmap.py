@@ -33,7 +33,7 @@ class ResolutionFileSizeHeatmap:
             resolution = benchmark.input.parameters.subgraph.resolution
             if resolution is None:
                 resolution = benchmark.input.parameters.subgraph.k
-                x_label = "k"
+                x_label = "K"
 
             # Aggregate metrics across all files for each distance
             # distance_metrics: Dict[int, Dict[str, Dict[str, int]]] = {distance: {metric: {"baseline": val, "modified": val}}}
@@ -80,16 +80,12 @@ class ResolutionFileSizeHeatmap:
 
             for distance, metric_values in distance_metrics.items():
                 item = {
-                    "resolution": resolution,
+                    "resolution": int(resolution),
                     "distance": distance,
                 }
                 for metric, values in metric_values.items():
                     val_baseline = values["baseline"]
                     val_modified = values["modified"]
-
-                    if metric in ["read_size", "write_size"]:
-                        val_baseline /= (1024 * 1024 * 1024)
-                        val_modified /= (1024 * 1024 * 1024)
 
                     item[f"baseline_{metric}"] = val_baseline
                     item[f"modified_{metric}"] = val_modified
@@ -106,7 +102,7 @@ class ResolutionFileSizeHeatmap:
 
         # We need subplots: len(metrics) rows, 2 columns (baseline and modified)
         n_rows = len(metrics)
-        fig, axes = plt.subplots(n_rows, 2, figsize=(20, 8 * n_rows), sharey=True, gridspec_kw=dict(width_ratios=[1,1.15]))
+        fig, axes = plt.subplots(n_rows, 2, figsize=(16, 3.5 * n_rows), sharey=True, sharex=True, gridspec_kw=dict(width_ratios=[0.7,0.8]))
 
         # If n_rows == 1, axes is 1D, make it 2D for consistent indexing
         if n_rows == 1:
@@ -145,33 +141,47 @@ class ResolutionFileSizeHeatmap:
 
             vmin, vmax = v_min_max_metrics[metric]["vmin"], v_min_max_metrics[metric]["vmax"]
             
-            label_suffix = " (GB)" if metric in ["read_size", "write_size"] else ""
-            fmt = ".4f" if metric in ["read_size", "write_size"] else ".2e"
+            label_suffix = ""
+            fmt = "d"
+            if metric in ["read_size", "write_size"]:
+                # Check if we should use GB or MB
+                max_val = max(vmax, abs(vmin))
+                if max_val < 1024 * 1024 * 1024: # Less than 1 GB
+                    pivot_baseline /= (1024 * 1024)
+                    pivot_modified /= (1024 * 1024)
+                    vmin /= (1024 * 1024)
+                    vmax /= (1024 * 1024)
+                    label_suffix = " (MB)"
+                    fmt = ".3f"
+                else:
+                    pivot_baseline /= (1024 * 1024 * 1024)
+                    pivot_modified /= (1024 * 1024 * 1024)
+                    vmin /= (1024 * 1024 * 1024)
+                    vmax /= (1024 * 1024 * 1024)
+                    label_suffix = " (GB)"
+                    fmt = ".3f"
 
+            readable_metric = metric.replace("_", " ").title()
             sns.heatmap(pivot_baseline, annot=True, cbar=False, fmt=fmt, ax=ax_baseline,
-                        vmin=vmin, vmax=vmax, cbar_kws={'label': f'Baseline {metric}{label_suffix}'},
-                        annot_kws={"size": 16})
-            ax_baseline.set_title(f"Baseline: {metric}{label_suffix}", fontsize=20)
-            ax_baseline.set_xlabel(x_label, fontsize=16)
-            ax_baseline.set_ylabel("Distance", fontsize=16)
+                        vmin=vmin, vmax=vmax, cbar_kws={'label': ''},
+                        annot_kws={"size": 14, "fontweight": "bold"})
+            ax_baseline.set_title(f"Baseline {readable_metric}{label_suffix}", fontsize=20)
+            ax_baseline.set_xlabel(x_label, fontsize=20)
+            ax_baseline.set_ylabel("Distance", fontsize=20)
             ax_baseline.tick_params(axis='both', which='major', labelsize=14)
 
             sns.heatmap(pivot_modified, annot=True, cbar=True, fmt=fmt, ax=ax_modified,
-                        vmin=vmin, vmax=vmax, cbar_kws={'label': f'Modified {metric}{label_suffix}'},
-                        annot_kws={"size": 16})
-            ax_modified.set_title(f"Modified: {metric}{label_suffix}", fontsize=20)
-            ax_modified.set_xlabel(x_label, fontsize=16)
-            ax_modified.set_ylabel("", fontsize=16)  # Shared y-axis
+                        vmin=vmin, vmax=vmax, cbar_kws={'label': ''},
+                        annot_kws={"size": 14, "fontweight": "bold"})
+            ax_modified.set_title(f"Modified {readable_metric}{label_suffix}", fontsize=20)
+            ax_modified.set_xlabel(x_label, fontsize=20)
+            ax_modified.set_ylabel("", fontsize=20)  # Shared y-axis
             ax_modified.tick_params(axis='both', which='major', labelsize=14)
             
-        metrics_str = ", ".join(metrics)
-        main_title = f"{x_label} vs Distance Comparison ({metrics_str})"
-        if file_name:
-            main_title += f"\nFile: {file_name}"
-        fig.suptitle(main_title, fontsize=24)
+        fig.suptitle("", fontsize=24)
 
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.savefig(output_filepath)
+        plt.tight_layout()
+        plt.savefig(output_filepath, dpi=500, bbox_inches='tight')
         plt.close()
         print(f"Heatmap saved to {output_filepath}")
 

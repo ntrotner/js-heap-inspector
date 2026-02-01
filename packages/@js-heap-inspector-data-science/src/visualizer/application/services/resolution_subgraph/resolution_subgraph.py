@@ -25,7 +25,7 @@ class ResolutionSubgraph:
             res = benchmark.input.parameters.subgraph.resolution
             if res is None:
                 res = benchmark.input.parameters.subgraph.k
-                x_label = "k"
+                x_label = "K"
             
             # Subgraphs
             sg_baseline = benchmark.output.subgraph.baseline
@@ -43,6 +43,10 @@ class ResolutionSubgraph:
             nodes_mod_added = benchmark.output.modified.added.nodes if benchmark.output.modified.added else 0
             nodes_mod_removed = benchmark.output.modified.removed.nodes
 
+            # Total Nodes
+            total_nodes_baseline = benchmark.input.baseline.nodes
+            total_nodes_modified = benchmark.input.modified.nodes
+
             data.append({
                 "resolution": res,
                 "type": "baseline",
@@ -50,7 +54,8 @@ class ResolutionSubgraph:
                 "matched": nodes_bl_matched,
                 "modified": nodes_bl_modified,
                 "added": nodes_bl_added,
-                "removed": nodes_bl_removed
+                "removed": nodes_bl_removed,
+                "total": total_nodes_baseline
             })
             data.append({
                 "resolution": res,
@@ -59,14 +64,15 @@ class ResolutionSubgraph:
                 "matched": nodes_mod_matched,
                 "modified": nodes_mod_modified,
                 "added": nodes_mod_added,
-                "removed": nodes_mod_removed
+                "removed": nodes_mod_removed,
+                "total": total_nodes_modified
             })
 
         df = pd.DataFrame(data)
         df = df.sort_values("resolution")
 
         # Plotting
-        fig, ax1 = plt.subplots(figsize=(12, 7))
+        fig, ax1 = plt.subplots(figsize=(17, 7))
 
         ax2 = ax1.twinx()
 
@@ -80,12 +86,12 @@ class ResolutionSubgraph:
                  'x--', label="Subgraphs (Modified)", color='black', markersize=12, linewidth=2, alpha=0.7, markeredgewidth=2)
         
         ax1.set_xlabel(x_label, fontsize=18)
-        ax1.set_ylabel("Amount of Subgraphs", fontsize=18)
+        ax1.set_ylabel("Amount of Subgraphs", fontsize=18, labelpad=15)
         ax1.tick_params(axis='both', which='major', labelsize=14)
         
         # Nodes (ax2)
-        node_metrics = ["matched", "modified", "added", "removed"]
-        colors = ['blue', 'orange', 'green', 'red']
+        node_metrics = ["matched", "modified", "added", "removed", "total"]
+        colors = ['blue', 'orange', 'green', 'red', 'purple']
         
         for metric, color in zip(node_metrics, colors):
             ax2.plot(df[df["type"] == "baseline"]["resolution"], df[df["type"] == "baseline"][metric], 
@@ -93,17 +99,17 @@ class ResolutionSubgraph:
             ax2.plot(df[df["type"] == "modified"]["resolution"], df[df["type"] == "modified"][metric], 
                      'x--', label=f"{metric.capitalize()} Nodes (Modified)", color=color, alpha=0.7, markersize=12, linewidth=2, markeredgewidth=2)
 
-        ax2.set_ylabel("Amount of Nodes", fontsize=18)
+        ax2.set_ylabel("Amount of Nodes", fontsize=18, labelpad=15)
         ax2.tick_params(axis='y', labelsize=14)
 
-        plt.title(f"{x_label} vs Subgraphs and Node Sets", fontsize=22)
+        plt.title("", fontsize=22)
         
         # Legend - combine both axes
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', bbox_to_anchor=(1.1, 1), fontsize=16)
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='lower left', bbox_to_anchor=(-0.005, 1), fontsize=10, ncol=6)
 
         fig.tight_layout()
-        plt.savefig(f"{output_filepath}/resolution_subgraph.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{output_filepath}/resolution_subgraph.png", dpi=400, bbox_inches="tight")
         plt.close()
         print(f"Diagram saved to {output_filepath}")
