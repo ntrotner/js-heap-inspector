@@ -4,6 +4,7 @@
   "description": "CLI for causal link analysis of V8 heap snapshots",
   "scripts": {
     "build": "tsc",
+    "file-merge:otter": "ts-node ./src/merge-similar-files.ts --target otter",
     "visualization:otter": "PYTHONPATH=\"$(pwd)/../../packages/@js-heap-inspector-data-science/src\" && python src/visualization.py --benchmark otter",
     "playwright-performance-reporter-converter": "ts-node ./src/playwright-performance-reporter-converter.ts ./data/${TARGET_APP}/base.json --output ./data/${TARGET_APP}/base.heapsnapshot && ts-node ./src/playwright-performance-reporter-converter.ts ./data/${TARGET_APP}/modified.json --output ./data/${TARGET_APP}/modified.heapsnapshot",
     "v8:runtime-converter": "ts-node ./src/runtime-converter.ts",
