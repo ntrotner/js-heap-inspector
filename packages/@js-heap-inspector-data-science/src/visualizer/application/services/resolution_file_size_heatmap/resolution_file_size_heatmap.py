@@ -52,14 +52,14 @@ class ResolutionFileSizeHeatmap:
                             value = getattr(dist_metric.metrics, metric, 0)
                             if distance not in distance_metrics:
                                 distance_metrics[distance] = {m: {"baseline": 0, "modified": 0} for m in metrics}
-                            distance_metrics[distance][metric]["baseline"] += value
+                            distance_metrics[distance][metric]["baseline"] += int(value)
 
                     if hasattr(file_comp.baseline, 'direct'):
                         distance = 0
                         value = getattr(file_comp.baseline.direct, metric, 0)
                         if distance not in distance_metrics:
                             distance_metrics[0] = {m: {"baseline": 0, "modified": 0} for m in metrics}
-                        distance_metrics[distance][metric]["baseline"] += value
+                        distance_metrics[distance][metric]["baseline"] += int(value)
 
                     # Process modified
                     if hasattr(file_comp.modified.derived, 'distances') and isinstance(
@@ -69,26 +69,26 @@ class ResolutionFileSizeHeatmap:
                             value = getattr(dist_metric.metrics, metric, 0)
                             if distance not in distance_metrics:
                                 distance_metrics[distance] = {m: {"baseline": 0, "modified": 0} for m in metrics}
-                            distance_metrics[distance][metric]["modified"] += value
+                            distance_metrics[distance][metric]["modified"] += int(value)
 
                     if hasattr(file_comp.modified, 'direct'):
                         distance = 0
                         value = getattr(file_comp.modified.direct, metric, 0)
                         if distance not in distance_metrics:
                             distance_metrics[0] = {m: {"baseline": 0, "modified": 0} for m in metrics}
-                        distance_metrics[distance][metric]["modified"] += value
+                        distance_metrics[distance][metric]["modified"] += int(value)
 
             for distance, metric_values in distance_metrics.items():
                 item = {
                     "resolution": int(resolution),
-                    "distance": distance,
+                    "distance": int(distance),
                 }
                 for metric, values in metric_values.items():
                     val_baseline = values["baseline"]
                     val_modified = values["modified"]
 
-                    item[f"baseline_{metric}"] = val_baseline
-                    item[f"modified_{metric}"] = val_modified
+                    item[f"baseline_{metric}"] = int(val_baseline)
+                    item[f"modified_{metric}"] = int(val_modified)
                 data.append(item)
 
         if not data:
@@ -114,7 +114,7 @@ class ResolutionFileSizeHeatmap:
         pivots = {}
         for metric in metrics:
             if metric not in v_min_max_metrics:
-                v_min_max_metrics[metric] = {"vmin": float("inf"), "vmax": float("-inf")}
+                v_min_max_metrics[metric] = {"vmin": 0, "vmax": 1}
             
             pivot_baseline = df.pivot_table(index="distance", columns="resolution", values=f"baseline_{metric}",
                                             aggfunc="sum")
@@ -216,4 +216,7 @@ class ResolutionFileSizeHeatmap:
 
             metrics = groups[group]
             output_filepath = os.path.join(output_dir, f"heatmap_{group}_{sanitized_name}.png")
-            self.generate(output_filepath, metrics=metrics, file_name=file_name)
+            try:
+                self.generate(output_filepath, metrics=metrics, file_name=file_name)
+            except Exception as e:
+                print(f"Error generating heatmap for file {file_name}: {e}")

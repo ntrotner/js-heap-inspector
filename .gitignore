@@ -9,6 +9,7 @@ build/
 *.tsbuildinfo
 packages/@js-heap-inspector-causal-link-cli/data/**/*.heapsnapshot
 packages/@js-heap-inspector-causal-link-cli/data/**/*.json
+packages/@js-heap-inspector-causal-link-cli/data/**/*.png
 
 # IDE
 .vscode/
