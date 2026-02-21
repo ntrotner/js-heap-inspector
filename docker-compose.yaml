@@ -1,0 +1,26 @@
+services:
+  js-heap-inspector-mariadb-dev:
+    image: mariadb:11.2
+    container_name: js-heap-inspector-mariadb-dev
+    profiles: [ "dev" ]
+    restart: unless-stopped
+    command: --max_allowed_packet=325058560 --max_allowed_packet=325058560
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    environment:
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: js-heap-inspector
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+volumes:
+  mariadb_data:
+    driver: local
