@@ -2,24 +2,24 @@ import {
   Module,
 } from '@nestjs/common';
 import {
-  AppController,
-} from './app.controller';
+  AuthModule,
+} from '@js-heap-inspector-gateway/common/infrastructure/auth/auth.module';
+import {
+  TypeOrmSetupModule,
+} from '@js-heap-inspector-gateway/common/infrastructure';
+import {
+  MetricsModule,
+} from '@js-heap-inspector-gateway/modules/metrics/metrics.module';
 import {
   AppService,
 } from './app.service';
-import {
-  AuthModule,
-} from './modules/auth/auth.module';
-import {
-  TypeOrmSetupModule,
-} from './common/infrastructure/database/typeorm.module';
 
 @Module({
   imports: [
     AuthModule,
+    MetricsModule,
     TypeOrmSetupModule.forRoot(),
   ],
-  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}

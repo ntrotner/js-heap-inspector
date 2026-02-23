@@ -14,7 +14,9 @@ export class TypeOrmSetupModule {
       username: 'root',
       password: 'root',
       database: 'js-heap-inspector',
-      entities: [],
+      entities: [
+        __dirname + '/../../../**/*.entity{.ts,.js}',
+      ],
       synchronize: true,
     });
   }

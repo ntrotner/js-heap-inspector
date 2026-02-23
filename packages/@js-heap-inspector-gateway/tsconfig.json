@@ -1,5 +1,4 @@
 {
-  "exclude": ["../../tsconfig.base.json"],
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",
@@ -21,6 +20,9 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@js-heap-inspector-gateway/*": ["src/*"],
+    }
   }
 }
